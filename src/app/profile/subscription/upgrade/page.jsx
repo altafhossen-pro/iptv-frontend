@@ -5,6 +5,8 @@ import { Crown, ArrowLeft, CreditCard, Phone, MessageCircle, CheckCircle } from 
 import Header from '@/components/Header/Header';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { getCookie } from 'cookies-next';
+import { useRouter } from 'next/navigation';
 
 const SubscriptionUpgradePage = () => {
     const [selectedMonths, setSelectedMonths] = useState(1);
@@ -13,8 +15,9 @@ const SubscriptionUpgradePage = () => {
     const [manualPaymentData, setManualPaymentData] = useState({
         senderNumber: '',
         transactionId: '',
-        paymentType: 'bkash' // 'bkash' or 'nogod'
+        paymentType: '' // 'bkash' or 'nogod'
     });
+    const router = useRouter();
 
     const pricePerMonth = 79;
 
@@ -39,6 +42,48 @@ const SubscriptionUpgradePage = () => {
         return originalPrice * option.discount / 100;
     };
 
+    const handleSubmitManualPayment = async () => {
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/subscription/manual-payment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${getCookie('token')}`
+                },
+                body: JSON.stringify({
+                    months: selectedMonths,
+                    amount: calculateDiscountedPrice(selectedMonths),
+                    senderNumber: manualPaymentData.senderNumber,
+                    transaction_id: manualPaymentData.transactionId,
+                    payment_method: manualPaymentData.paymentType
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to submit manual payment');
+            }
+
+            const data = await response.json();
+            toast.success('Manual payment submitted successfully! Please wait for Admin  confirmation.', {
+                duration: 8000,
+                position: 'top-center'
+            });
+            router.push('/profile');
+
+            
+        } catch (error) {
+            console.error('Error submitting manual payment:', error);
+            toast.error(error.message || 'Failed to submit manual payment');
+        }
+        finally {
+            setManualPaymentData({
+                senderNumber: '',
+                transactionId: '',
+                paymentType: ''
+            });
+        }
+    }
+
     const handlePayment = () => {
         if (!agreedToTerms) return;
 
@@ -57,9 +102,11 @@ const SubscriptionUpgradePage = () => {
                 toast.error('Please fill in all manual payment fields.');
                 return;
             }
-            toast.success('Manual payment submitted successfully! Please wait for confirmation.');
+            handleSubmitManualPayment();
+            
         }
     };
+
 
     const handleWhatsAppSupport = () => {
         const message = `Hi, I want to upgrade to Premium subscription for ${selectedMonths} month${selectedMonths > 1 ? 's' : ''} (৳${calculateDiscountedPrice(selectedMonths).toFixed(0)}). Please help me with the payment process.`;
@@ -221,9 +268,11 @@ const SubscriptionUpgradePage = () => {
                                                 onChange={(e) => setManualPaymentData({ ...manualPaymentData, paymentType: e.target.value })}
                                                 className="w-full p-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:border-purple-500 focus:outline-none"
                                             >
+                                                <option disabled value="">Select Method</option>
                                                 <option value="bkash">bKash</option>
                                                 <option value="nogod">Nagad</option>
                                             </select>
+
                                         </div>
 
                                         <div>

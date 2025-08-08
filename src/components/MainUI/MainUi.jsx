@@ -55,6 +55,10 @@ const MainUi = () => {
     const videoRef = useRef(null);
     const hlsRef = useRef(null);
     const loadingTimeoutRef = useRef(null);
+    const [selectedPremiumFilter, setSelectedPremiumFilter] = useState('all'); // 'all', 'free', 'premium'
+    const [hasUserInteracted, setHasUserInteracted] = useState(false);
+
+
 
     useEffect(() => {
         // Fetch channels from API 
@@ -107,10 +111,19 @@ const MainUi = () => {
     }, []);
 
 
-    const filteredChannels = channels.filter(channel => {
+    const sortedChannels = channels.filter(channel => {
         const matchesSearch = channel.name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = selectedCategory === 'all' || channel.category_id.slug === selectedCategory;
-        return matchesSearch && matchesCategory;
+        const matchesPremiumFilter = selectedPremiumFilter === 'all' ||
+            (selectedPremiumFilter === 'free' && !channel.is_premium) ||
+            (selectedPremiumFilter === 'premium' && channel.is_premium);
+        return matchesSearch && matchesCategory && matchesPremiumFilter;
+    });
+
+    const filteredChannels = sortedChannels.sort((a, b) => {
+        if (a.name.toLowerCase() < b.name.toLowerCase()) return -1;
+        if (a.name.toLowerCase() > b.name.toLowerCase()) return 1;
+        return 0;
     });
 
     // Load HLS stream
@@ -124,6 +137,7 @@ const MainUi = () => {
                 document.head.appendChild(script);
             });
         };
+
         if (isLoading) {
             console.log('Stream already loading, ignoring new request');
             return;
@@ -148,6 +162,8 @@ const MainUi = () => {
                 videoRef.current.pause();
                 videoRef.current.removeAttribute('src');
                 videoRef.current.load();
+                videoRef.current.volume = volume;
+                videoRef.current.muted = isMuted;
             } catch (error) {
                 console.log('Error resetting video element:', error);
             }
@@ -158,6 +174,15 @@ const MainUi = () => {
             if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
                 videoRef.current.src = url;
                 setIsLoading(false);
+
+                // Auto-play only if user has interacted (clicked on channel)
+                try {
+                    await videoRef.current.play();
+                    setIsPlaying(true);
+                } catch (error) {
+                    console.log('Auto-play prevented:', error);
+                    setIsPlaying(false);
+                }
             } else {
                 // Try to load HLS.js from CDN
                 if (!window.Hls) {
@@ -183,15 +208,20 @@ const MainUi = () => {
                     hls.loadSource(url);
                     hls.attachMedia(videoRef.current);
 
-                    hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+                    hls.on(window.Hls.Events.MANIFEST_PARSED, async () => {
                         console.log('HLS stream loaded successfully');
                         if (videoRef.current) {
                             videoRef.current.volume = volume;
-                            videoRef.current.play().then(() => {
+                            videoRef.current.muted = isMuted;
+
+                            // Auto-play only if user has interacted (clicked on channel)
+                            try {
+                                await videoRef.current.play();
                                 setIsPlaying(true);
-                            }).catch(error => {
-                                console.log('Play error (non-critical):', error);
-                            });
+                            } catch (error) {
+                                console.log('Auto-play prevented:', error);
+                                setIsPlaying(false);
+                            }
                         }
                         setIsLoading(false);
                     });
@@ -206,6 +236,19 @@ const MainUi = () => {
                 } else {
                     videoRef.current.src = url;
                     setIsLoading(false);
+
+                    // Auto-play only if user has interacted (clicked on channel)
+                    if (hasUserInteracted) {
+                        try {
+                            await videoRef.current.play();
+                            setIsPlaying(true);
+                        } catch (error) {
+                            console.log('Auto-play prevented:', error);
+                            setIsPlaying(false);
+                        }
+                    } else {
+                        setIsPlaying(false);
+                    }
                 }
             }
         } catch (error) {
@@ -221,6 +264,7 @@ const MainUi = () => {
         if (lastSelectedChannel?._id === channel._id) {
             return;
         }
+
         console.log(channel);
         if (channel?.is_premium) {
             // Check if user is logged in and has access to premium channels
@@ -244,6 +288,9 @@ const MainUi = () => {
         setCurrentChannel(channel);
         setLastSelectedChannel(channel);
 
+        // ✅ এইখানে change করো - channel select করার সাথে সাথেই user interaction mark করো
+        setHasUserInteracted(true);
+
         if (channel.m3u8_url) {
             // Add a small delay to prevent rapid switching
             loadingTimeoutRef.current = setTimeout(() => {
@@ -252,8 +299,10 @@ const MainUi = () => {
         }
     };
 
+
     const togglePlayPause = () => {
         if (videoRef.current) {
+            setHasUserInteracted(true); // Mark that user has interacted
             if (isPlaying) {
                 videoRef.current.pause();
             } else {
@@ -343,10 +392,6 @@ const MainUi = () => {
 
     useEffect(() => {
 
-        // Set first channel as default
-        if (channels.length > 0 && !currentChannel) {
-            setCurrentChannel(channels[0]);
-        }
 
         return () => {
             if (hlsRef.current) {
@@ -361,7 +406,8 @@ const MainUi = () => {
                 clearTimeout(loadingTimeoutRef.current);
             }
         };
-    }, []);
+    }, [channels]);
+
 
     // Separate useEffect for keyboard controls
     useEffect(() => {
@@ -444,13 +490,13 @@ const MainUi = () => {
                                                         />
                                                     </div>
 
-                                                    <div className="text-xs lg:text-sm text-gray-300 hidden sm:block">
+                                                    {/* <div className="text-xs lg:text-sm text-gray-300 hidden sm:block">
                                                         <span className="flex items-center space-x-1 lg:space-x-2">
                                                             <Eye className="w-3 h-3 lg:w-4 lg:h-4" />
                                                             <span className="hidden sm:inline">{currentChannel.viewer_count?.toLocaleString()} watching</span>
                                                             <span className="sm:hidden">{currentChannel.viewer_count?.toLocaleString()}</span>
                                                         </span>
-                                                    </div>
+                                                    </div> */}
                                                 </div>
 
                                                 <button
@@ -493,7 +539,14 @@ const MainUi = () => {
                         {/* Filters Section */}
                         <div className="mb-4 lg:mb-6 bg-gray-800 p-3 lg:p-4 rounded-lg border border-gray-700">
                             <div className="flex items-center justify-between mb-3 lg:mb-4">
-                                <h2 className="text-lg lg:text-xl font-semibold">Channels ({filteredChannels.length})</h2>
+                                <h2 className="text-lg lg:text-xl font-semibold">
+                                    Channels ({filteredChannels.length})
+                                    {selectedPremiumFilter !== 'all' && (
+                                        <span className="text-sm text-gray-400 ml-2">
+                                            • {selectedPremiumFilter === 'free' ? '🆓 Free' : '💎 Premium'}
+                                        </span>
+                                    )}
+                                </h2>
                                 <div className="flex space-x-1 lg:space-x-2">
                                     <button
                                         onClick={() => setViewMode('grid')}
@@ -539,6 +592,36 @@ const MainUi = () => {
                                     </button>
                                 ))}
                             </div>
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700">
+                                <span className="text-sm text-gray-400 font-medium">Channel Type:</span>
+                                <div className="flex space-x-1 lg:space-x-2">
+                                    {[
+                                        { key: 'all', label: 'All', icon: '🌟' },
+                                        { key: 'free', label: 'Free', icon: '🆓' },
+                                        { key: 'premium', label: 'Premium', icon: '💎' }
+                                    ].map(filter => (
+                                        <button
+                                            key={filter.key}
+                                            onClick={() => setSelectedPremiumFilter(filter.key)}
+                                            className={`px-2 lg:px-3 py-1.5 lg:py-2 rounded-lg transition-all duration-200 text-xs lg:text-sm font-medium cursor-pointer flex items-center space-x-1 ${selectedPremiumFilter === filter.key
+                                                ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg transform scale-105'
+                                                : 'bg-gray-700 text-gray-300 hover:text-white hover:bg-gray-600 hover:shadow-md'
+                                                }`}
+                                        >
+                                            <span className="text-xs">{filter.icon}</span>
+                                            <span>{filter.label}</span>
+                                            {filter.key !== 'all' && (
+                                                <span className="bg-black/30 px-1.5 py-0.5 rounded text-xs">
+                                                    {filter.key === 'free'
+                                                        ? channels.filter(ch => !ch.is_premium && (selectedCategory === 'all' || ch.category_id.slug === selectedCategory)).length
+                                                        : channels.filter(ch => ch.is_premium && (selectedCategory === 'all' || ch.category_id.slug === selectedCategory)).length
+                                                    }
+                                                </span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
                         {/* Channel Grid */}
@@ -564,7 +647,7 @@ const MainUi = () => {
                                                     {channel.is_premium && (
                                                         <span className="bg-red-500 text-white px-1 lg:px-2 py-0.5 lg:py-1 rounded text-xs font-medium">
                                                             <Lock className="w-2 h-2 lg:w-3 lg:h-3 inline mr-1" />
-                                                            <span className="hidden sm:inline">Pro</span>
+                                                            <span className="">Pro</span>
                                                         </span>
                                                     )}
                                                 </div>

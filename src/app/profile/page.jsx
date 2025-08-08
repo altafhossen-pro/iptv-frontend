@@ -52,7 +52,7 @@ const page = () => {
         };
         return typeColors[type] || 'bg-gray-500';
     };
-    if (!userData || Object.keys(userData).length === 0) {
+    if (!userData || Object.keys(userData).length === 0 && !loading) {
         return (
             <div className='min-h-screen bg-gray-900 text-white'>
                 <Header />
@@ -73,7 +73,7 @@ const page = () => {
                                 >
                                     Go to Login
                                 </button>
-                                
+
                             </div>
                         </div>
 
