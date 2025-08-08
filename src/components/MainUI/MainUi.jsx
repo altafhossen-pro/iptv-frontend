@@ -45,6 +45,7 @@ const MainUi = () => {
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [viewMode, setViewMode] = useState('grid');
     const [isLoading, setIsLoading] = useState(false);
+    const [initialChannelsLoading, setInitialChannelsLoading] = useState(true);
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
     const [lastSelectedChannel, setLastSelectedChannel] = useState(null);
@@ -77,6 +78,9 @@ const MainUi = () => {
                 console.error('Error fetching channels:', error);
                 setErrorMessage('Failed to load channels. Please try again later.');
                 setShowErrorModal(true);
+            }
+            finally {
+                setInitialChannelsLoading(false);
             }
         };
         fetchChannels();
@@ -626,90 +630,100 @@ const MainUi = () => {
 
                         {/* Channel Grid */}
                         <div className="space-y-4">
-                            {viewMode === 'grid' ? (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 lg:gap-4 max-h-[40vh] lg:max-h-[60vh] overflow-y-auto">
-                                    {filteredChannels.map(channel => (
-                                        <div
-                                            key={channel._id}
-                                            onClick={() => handleChannelSelect(channel)}
-                                            className={`cursor-pointer rounded-lg border transition-all duration-200 hover:scale-105 ${currentChannel?._id === channel._id
-                                                ? 'border-blue-500 bg-blue-500/10'
-                                                : 'border-gray-600 hover:border-gray-500 bg-gray-700/50 hover:bg-gray-700'
-                                                }`}
-                                        >
-                                            <div className="relative">
-                                                <img
-                                                    src={channel.thumbnail}
-                                                    alt={channel.name}
-                                                    className="w-full h-16 sm:h-20 lg:h-24 object-cover rounded-t-lg"
-                                                />
-                                                <div className="absolute top-1 lg:top-2 right-1 lg:right-2 flex space-x-1">
-                                                    {channel.is_premium && (
-                                                        <span className="bg-red-500 text-white px-1 lg:px-2 py-0.5 lg:py-1 rounded text-xs font-medium">
-                                                            <Lock className="w-2 h-2 lg:w-3 lg:h-3 inline mr-1" />
-                                                            <span className="">Pro</span>
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <div className="absolute bottom-1 lg:bottom-2 right-1 lg:right-2 bg-black/70 text-white px-1 lg:px-2 py-0.5 lg:py-1 rounded text-xs">
-                                                    {channel.quality}
-                                                </div>
-                                            </div>
-                                            <div className="p-2 lg:p-3">
-                                                <h4 className="font-medium text-xs lg:text-sm truncate mb-1">{channel.name}</h4>
-                                                <div className="flex items-center justify-between text-xs text-gray-400">
-                                                    <span className="truncate mr-2">{channel.category_id.name}</span>
-                                                    <div className="flex items-center flex-shrink-0">
-                                                        <Users className="w-2 h-2 lg:w-3 lg:h-3 mr-1" />
-                                                        <span>{channel.viewer_count}</span>
+                            {
+                                initialChannelsLoading ? (
+                                    <div className="flex items-center justify-center h-40">
+                                        <Loader2 className="w-8 h-8 lg:w-12 lg:h-12 animate-spin text-blue-400" />
+                                        <p className="text-gray-400 ml-4">Loading channels...</p>
+                                    </div>
+                                ) : <>
+                                    {viewMode === 'grid' ? (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 lg:gap-4 max-h-[40vh] lg:max-h-[60vh] overflow-y-auto">
+                                            {filteredChannels.map(channel => (
+                                                <div
+                                                    key={channel._id}
+                                                    onClick={() => handleChannelSelect(channel)}
+                                                    className={`cursor-pointer rounded-lg border transition-all duration-200 hover:scale-105 ${currentChannel?._id === channel._id
+                                                        ? 'border-blue-500 bg-blue-500/10'
+                                                        : 'border-gray-600 hover:border-gray-500 bg-gray-700/50 hover:bg-gray-700'
+                                                        }`}
+                                                >
+                                                    <div className="relative">
+                                                        <img
+                                                            src={channel.thumbnail}
+                                                            alt={channel.name}
+                                                            className="w-full h-16 sm:h-20 lg:h-24 object-cover rounded-t-lg"
+                                                        />
+                                                        <div className="absolute top-1 lg:top-2 right-1 lg:right-2 flex space-x-1">
+                                                            {channel.is_premium && (
+                                                                <span className="bg-red-500 text-white px-1 lg:px-2 py-0.5 lg:py-1 rounded text-xs font-medium">
+                                                                    <Lock className="w-2 h-2 lg:w-3 lg:h-3 inline mr-1" />
+                                                                    <span className="">Pro</span>
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="absolute bottom-1 lg:bottom-2 right-1 lg:right-2 bg-black/70 text-white px-1 lg:px-2 py-0.5 lg:py-1 rounded text-xs">
+                                                            {channel.quality}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="space-y-2 lg:space-y-3 max-h-[40vh] lg:max-h-[60vh] overflow-y-auto">
-                                    {filteredChannels.map(channel => (
-                                        <div
-                                            key={channel._id}
-                                            onClick={() => handleChannelSelect(channel)}
-                                            className={`cursor-pointer rounded-lg border transition-all duration-200 ${currentChannel?._id === channel._id
-                                                ? 'border-blue-500 bg-blue-500/10'
-                                                : 'border-gray-600 hover:border-gray-500 bg-gray-700/50 hover:bg-gray-700'
-                                                }`}
-                                        >
-                                            <div className="flex items-center p-2 lg:p-3 space-x-2 lg:space-x-3">
-                                                <img
-                                                    src={channel.logo}
-                                                    alt={channel.name}
-                                                    className="w-8 h-8 lg:w-12 lg:h-12 rounded-lg object-cover flex-shrink-0"
-                                                />
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="font-medium text-sm lg:text-base truncate">{channel.name}</h4>
-                                                    <div className="flex items-center space-x-1 lg:space-x-2 text-xs text-gray-400 mt-1">
-                                                        <span className="truncate">{channel.category_id.name}</span>
-                                                        <span className="hidden sm:inline">•</span>
-                                                        <span className="hidden sm:inline">{channel.quality}</span>
-                                                        <span className="hidden sm:inline">•</span>
-                                                        <div className="flex items-center">
-                                                            <Users className="w-2 h-2 lg:w-3 lg:h-3 mr-1" />
-                                                            <span>{channel.viewer_count}</span>
+                                                    <div className="p-2 lg:p-3">
+                                                        <h4 className="font-medium text-xs lg:text-sm truncate mb-1">{channel.name}</h4>
+                                                        <div className="flex items-center justify-between text-xs text-gray-400">
+                                                            <span className="truncate mr-2">{channel.category_id.name}</span>
+                                                            <div className="flex items-center flex-shrink-0">
+                                                                <Users className="w-2 h-2 lg:w-3 lg:h-3 mr-1" />
+                                                                <span>{channel.viewer_count}</span>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-col items-end space-y-1">
-                                                    {channel.is_premium && (
-                                                        <Lock className="w-3 h-3 lg:w-4 lg:h-4 text-yellow-400" />
-                                                    )}
-                                                    <div className={`w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full ${channel.is_online ? 'bg-green-500' : 'bg-red-500'
-                                                        }`}></div>
-                                                </div>
-                                            </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
-                            )}
+                                    ) : (
+                                        <div className="space-y-2 lg:space-y-3 max-h-[40vh] lg:max-h-[60vh] overflow-y-auto">
+                                            {filteredChannels.map(channel => (
+                                                <div
+                                                    key={channel._id}
+                                                    onClick={() => handleChannelSelect(channel)}
+                                                    className={`cursor-pointer rounded-lg border transition-all duration-200 ${currentChannel?._id === channel._id
+                                                        ? 'border-blue-500 bg-blue-500/10'
+                                                        : 'border-gray-600 hover:border-gray-500 bg-gray-700/50 hover:bg-gray-700'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center p-2 lg:p-3 space-x-2 lg:space-x-3">
+                                                        <img
+                                                            src={channel.logo}
+                                                            alt={channel.name}
+                                                            className="w-8 h-8 lg:w-12 lg:h-12 rounded-lg object-cover flex-shrink-0"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="font-medium text-sm lg:text-base truncate">{channel.name}</h4>
+                                                            <div className="flex items-center space-x-1 lg:space-x-2 text-xs text-gray-400 mt-1">
+                                                                <span className="truncate">{channel.category_id.name}</span>
+                                                                <span className="hidden sm:inline">•</span>
+                                                                <span className="hidden sm:inline">{channel.quality}</span>
+                                                                <span className="hidden sm:inline">•</span>
+                                                                <div className="flex items-center">
+                                                                    <Users className="w-2 h-2 lg:w-3 lg:h-3 mr-1" />
+                                                                    <span>{channel.viewer_count}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex flex-col items-end space-y-1">
+                                                            {channel.is_premium && (
+                                                                <Lock className="w-3 h-3 lg:w-4 lg:h-4 text-yellow-400" />
+                                                            )}
+                                                            <div className={`w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full ${channel.is_online ? 'bg-green-500' : 'bg-red-500'
+                                                                }`}></div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </>
+                            }
+
                         </div>
                     </div>
                 </div>
