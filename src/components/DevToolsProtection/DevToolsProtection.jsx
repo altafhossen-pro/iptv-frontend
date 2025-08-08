@@ -20,7 +20,7 @@ const DevToolsProtection = () => {
     useEffect(() => {
 
         const isEnabledForLocalhost = false;  // Enable for development
-        const isEnabledForProduction = false; // Enable for production
+        const isEnabledForProduction = true; // Enable for production
 
         const isDevelopment = process.env.NODE_ENV === 'development';
         const isProduction = process.env.NODE_ENV === 'production';

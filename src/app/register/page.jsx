@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { AuthContext } from '@/provider/AuthProvider';
 import { setCookie } from 'cookies-next';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const ThreeStepRegister = () => {
     const router = useRouter();
@@ -18,6 +19,7 @@ const ThreeStepRegister = () => {
         otp: '',
         name: '',
         phone: '',
+        termsAccepted: false,
         password: '',
         confirmPassword: ''
     });
@@ -84,6 +86,7 @@ const ThreeStepRegister = () => {
                     toast.error('Invalid OTP. Please try again.');
                 }
             } else {
+                toast.error('Failed to verify OTP. Please check your email and try again.');
                 console.log('Failed to verify OTP:', response.statusText);
             }
         } catch (error) {
@@ -124,7 +127,7 @@ const ThreeStepRegister = () => {
                         maxAge: 60 * 60 * 24 * 365,
                         path: '/',
                     });
-                    router.push('/'); 
+                    router.push('/');
                 } else {
                     const errorData = await response.json();
                     toast.error(`Registration failed: ${errorData.message || 'Please try again.'}`);
@@ -277,7 +280,19 @@ const ThreeStepRegister = () => {
                                         }
 
                                     </div>
-
+                                    <div>
+                                        {otpSent && (
+                                            <p className='text-sm text-gray-400 mt-2'>
+                                                If you didn't receive the code, please check your <Link className='text-yellow-500' target='_blank' href={`https://mail.google.com/mail/#spam`}>spam folder</Link> or{' '}
+                                                <button
+                                                    onClick={() => setOtpSent(false)}
+                                                    className='text-blue-400 hover:underline cursor-pointer'
+                                                >
+                                                    try again
+                                                </button>.
+                                            </p>
+                                        )}
+                                    </div>
                                     <div className='text-center mt-4'>
                                         <button
                                             onClick={() => setOtpSent(false)}
@@ -362,6 +377,21 @@ const ThreeStepRegister = () => {
                                         )}
                                     </div>
 
+                                    {/* add terms and condition text for signup  */}
+                                    <div className='my-6'>
+                                        <label className='inline-flex items-center text-sm text-gray-400'>
+                                            <input
+                                                type='checkbox'
+                                                required
+                                                onChange={(e) => handleInputChange('termsAccepted', e.target.checked)}
+                                                className='form-checkbox h-5 w-5 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 cursor-pointer'
+                                            />
+                                            <span className='ml-3 cursor-pointer select-none'>
+                                                I agree to the <Link href={`/terms-and-condition`} className="text-purple-400 hover:underline cursor-pointer">Terms and Conditions</Link> and <Link href={`/privacy-policy`} className="text-purple-400 hover:underline cursor-pointer">Privacy Policy</Link>
+                                            </span>
+                                        </label>
+                                    </div>
+
                                     <div className='flex space-x-3'>
                                         <button
                                             onClick={prevStep}
@@ -371,7 +401,13 @@ const ThreeStepRegister = () => {
                                         </button>
                                         <button
                                             onClick={handleFinalSubmit}
-                                            disabled={!formData.name || !formData.phone || !formData.password || formData.password !== formData.confirmPassword}
+                                            disabled={
+                                                !formData.name ||
+                                                !formData.phone ||
+                                                !formData.password ||
+                                                formData.password !== formData.confirmPassword ||
+                                                !formData.termsAccepted // ✅ Terms must be accepted
+                                            }
                                             className='flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center justify-center'
                                         >
                                             <Lock className='w-4 h-4 mr-2' /> Create Account

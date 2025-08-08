@@ -49,6 +49,7 @@ const MainUi = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [lastSelectedChannel, setLastSelectedChannel] = useState(null);
     const [showLoginNeedModal, setShowLoginNeedModal] = useState(false);
+    const [subscriptionUpdagradeModalOpen, setSubscriptionUpgradeModalOpen] = useState(false);
     const [channels, setChannels] = useState([]);
     const [categories, setCategories] = useState([]);
     const videoRef = useRef(null);
@@ -228,6 +229,11 @@ const MainUi = () => {
                 setShowLoginNeedModal(true);
                 return;
             }
+            if (user?.subscription?.status !== 'active') {
+                setErrorMessage('This is a premium channel. Please upgrade your subscription to access it.');
+                setSubscriptionUpgradeModalOpen(true);
+                return;
+            }
         }
 
         // Clear any existing loading timeout
@@ -336,7 +342,7 @@ const MainUi = () => {
     };
 
     useEffect(() => {
-        
+
         // Set first channel as default
         if (channels.length > 0 && !currentChannel) {
             setCurrentChannel(channels[0]);
@@ -491,13 +497,13 @@ const MainUi = () => {
                                 <div className="flex space-x-1 lg:space-x-2">
                                     <button
                                         onClick={() => setViewMode('grid')}
-                                        className={`p-1.5 lg:p-2 rounded ${viewMode === 'grid' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                                        className={`p-1.5 lg:p-2 cursor-pointer rounded ${viewMode === 'grid' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                                     >
                                         <Grid3X3 className="w-4 h-4 lg:w-5 lg:h-5" />
                                     </button>
                                     <button
                                         onClick={() => setViewMode('list')}
-                                        className={`p-1.5 lg:p-2 rounded ${viewMode === 'list' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                                        className={`p-1.5 lg:p-2 rounded cursor-pointer ${viewMode === 'list' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                                     >
                                         <List className="w-4 h-4 lg:w-5 lg:h-5" />
                                     </button>
@@ -524,7 +530,7 @@ const MainUi = () => {
                                     <button
                                         key={category._id}
                                         onClick={() => setSelectedCategory(category.slug)}
-                                        className={`px-2 lg:px-4 py-1.5 lg:py-2 rounded-lg transition-colors text-xs lg:text-sm font-medium ${selectedCategory === category.slug
+                                        className={`px-2 lg:px-4 py-1.5 lg:py-2 rounded-lg transition-colors text-xs lg:text-sm font-medium cursor-pointer ${selectedCategory === category.slug
                                             ? 'bg-blue-600 text-white'
                                             : 'bg-gray-700 text-gray-300 hover:text-white hover:bg-gray-600'
                                             }`}
@@ -538,7 +544,7 @@ const MainUi = () => {
                         {/* Channel Grid */}
                         <div className="space-y-4">
                             {viewMode === 'grid' ? (
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2 lg:gap-4 max-h-[40vh] lg:max-h-[60vh] overflow-y-auto">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 lg:gap-4 max-h-[40vh] lg:max-h-[60vh] overflow-y-auto">
                                     {filteredChannels.map(channel => (
                                         <div
                                             key={channel._id}
@@ -680,6 +686,30 @@ const MainUi = () => {
                     </div>
                 </div>
             )}
+            {
+                subscriptionUpdagradeModalOpen && (
+                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-gray-800 p-4 lg:p-6 rounded-lg max-w-md w-full mx-4">
+                            <div className="flex items-center space-x-3 mb-4">
+                                <AlertCircle className="w-5 h-5 lg:w-6 lg:h-6 text-red-400" />
+                                <h3 className="text-base lg:text-lg font-semibold">Subscription Upgrade Needed</h3>
+                            </div>
+                            <p className="text-gray-300 mb-4 lg:mb-6 text-sm lg:text-base">This is a premium channel. Please upgrade your subscription to access it.</p>
+                            <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
+                                <button
+                                    onClick={() => setSubscriptionUpgradeModalOpen(false)}
+                                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-sm lg:text-base cursor-pointer"
+                                >
+                                    Close
+                                </button>
+                                <Link href="/profile/subscription/upgrade" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-sm lg:text-base block text-center cursor-pointer">
+                                    Upgrade Subscription
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
         </div>
     );
 };
