@@ -19,10 +19,10 @@ const DevToolsProtection = () => {
 
     useEffect(() => {
 
-        if(process.env.NODE_ENV !== 'production') {
-            console.warn('DevToolsProtection is only active in production mode.');
-            return;
-        }
+        // if(process.env.NODE_ENV !== 'production') {
+        //     console.warn('DevToolsProtection is only active in production mode.');
+        //     return;
+        // }
         // Disable right-click context menu silently (no warning)
         const disableRightClick = (e) => {
             e.preventDefault();
