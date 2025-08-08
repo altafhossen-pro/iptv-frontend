@@ -8,7 +8,7 @@ const DevToolsProtection = () => {
     const showWarningModal = (message) => {
         setWarningMessage(message);
         setShowWarning(true);
-        
+
         // Auto close after 3 seconds
         setTimeout(() => {
             setShowWarning(false);
@@ -19,10 +19,20 @@ const DevToolsProtection = () => {
 
     useEffect(() => {
 
-        // if(process.env.NODE_ENV !== 'production') {
-        //     console.warn('DevToolsProtection is only active in production mode.');
-        //     return;
-        // }
+        const isEnabledForLocalhost = false;  // Enable for development
+        const isEnabledForProduction = false; // Enable for production
+
+        const isDevelopment = process.env.NODE_ENV === 'development';
+        const isProduction = process.env.NODE_ENV === 'production';
+
+        // 🔒 Only enable protections if the correct environment is allowed
+        if (
+            (isDevelopment && !isEnabledForLocalhost) ||
+            (isProduction && !isEnabledForProduction)
+        ) {
+            return; // ❌ Skip protection
+        }
+
         // Disable right-click context menu silently (no warning)
         const disableRightClick = (e) => {
             e.preventDefault();
@@ -32,31 +42,31 @@ const DevToolsProtection = () => {
         // Disable common developer tools keyboard shortcuts
         const disableKeyboardShortcuts = (e) => {
             let warningMsg = '';
-            
+
             // F12
             if (e.keyCode === 123) {
                 warningMsg = '🚨 DEVELOPER TOOLS BLOCKED - This function is dangerous and disabled!';
                 e.preventDefault();
             }
-            
+
             // Ctrl+Shift+I (Developer Tools)
             if (e.ctrlKey && e.shiftKey && e.keyCode === 73) {
                 warningMsg = '🚨 INSPECT MODE BLOCKED - System security activated!';
                 e.preventDefault();
             }
-            
+
             // Ctrl+Shift+J (Console)
             if (e.ctrlKey && e.shiftKey && e.keyCode === 74) {
                 warningMsg = '🚨 CONSOLE ACCESS DENIED - This is a restricted area!';
                 e.preventDefault();
             }
-            
+
             // Ctrl+U (View Source)
             if (e.ctrlKey && e.keyCode === 85) {
                 warningMsg = '🚨 SOURCE VIEW BLOCKED - This action will not work here!';
                 e.preventDefault();
             }
-            
+
             // Ctrl+Shift+C (Inspect Element)
             if (e.ctrlKey && e.shiftKey && e.keyCode === 67) {
                 warningMsg = '🚨 ELEMENT INSPECTOR BLOCKED - Access denied!';
@@ -79,7 +89,7 @@ const DevToolsProtection = () => {
         // Detect developer tools opening
         const detectDevTools = () => {
             const threshold = 160;
-            
+
             const check = () => {
                 if (
                     window.outerHeight - window.innerHeight > threshold ||
@@ -131,7 +141,7 @@ const DevToolsProtection = () => {
             document.removeEventListener('keydown', disableKeyboardShortcuts);
             document.removeEventListener('dragstart', disableDragDrop);
             document.removeEventListener('drop', disableDragDrop);
-            
+
             // Restore text selection
             document.body.style.userSelect = '';
             document.body.style.webkitUserSelect = '';
@@ -142,7 +152,7 @@ const DevToolsProtection = () => {
 
     return (
         <div>
-            
+
             {/* Warning Modal - Only shows for developer tools attempts */}
             {showWarning && (
                 <div style={{
@@ -175,7 +185,7 @@ const DevToolsProtection = () => {
                             marginBottom: '20px',
                             filter: 'drop-shadow(0 0 10px rgba(255,255,255,0.5))'
                         }}>🚨</div>
-                        
+
                         <h2 style={{
                             margin: '0 0 20px 0',
                             fontSize: '28px',
@@ -185,7 +195,7 @@ const DevToolsProtection = () => {
                         }}>
                             ⚠️ SECURITY BREACH DETECTED ⚠️
                         </h2>
-                        
+
                         <p style={{
                             margin: '0 0 25px 0',
                             fontSize: '18px',
@@ -194,7 +204,7 @@ const DevToolsProtection = () => {
                         }}>
                             {warningMessage}
                         </p>
-                        
+
                         <div style={{
                             fontSize: '14px',
                             opacity: 0.8,
@@ -208,7 +218,7 @@ const DevToolsProtection = () => {
                     </div>
                 </div>
             )}
-            
+
             {/* CSS Animations */}
             <style>{`
                 @keyframes shake {
