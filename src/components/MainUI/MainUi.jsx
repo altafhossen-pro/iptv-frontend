@@ -27,6 +27,7 @@ import CurrentChannelInfo from './CurrentChannelInfo';
 import KeyboardShortcut from './KeyboardShortcut';
 import { AuthContext } from '@/provider/AuthProvider';
 import Link from 'next/link';
+import { getCookie } from 'cookies-next';
 
 const MainUi = () => {
     const { user } = useContext(AuthContext);
@@ -298,7 +299,9 @@ const MainUi = () => {
         if (channel.m3u8_url) {
             // Add a small delay to prevent rapid switching
             loadingTimeoutRef.current = setTimeout(() => {
-                loadHLSStream(channel.m3u8_url);
+                console.log(channel.m3u8_url," loading stream... m3u8_url");
+                loadHLSStream(`/api/stream?url=${encodeURIComponent(channel.m3u8_url)}`);
+
             }, 100);
         }
     };
