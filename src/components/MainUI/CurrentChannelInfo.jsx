@@ -1,7 +1,10 @@
-import { Lock } from 'lucide-react';
-import React from 'react';
+import { AuthContext } from '@/provider/AuthProvider';
+import { Lock, Unlock } from 'lucide-react';
+import React, { useContext } from 'react';
 
-const CurrentChannelInfo = ({currentChannel}) => {
+const CurrentChannelInfo = ({ currentChannel }) => {
+    const { subscription } = useContext(AuthContext);
+    console.log(subscription);
     return (
         <div className="mt-4 bg-gray-800 p-4 rounded-lg border border-gray-700">
             <div className="flex items-center space-x-3">
@@ -24,7 +27,10 @@ const CurrentChannelInfo = ({currentChannel}) => {
                 </div>
                 {currentChannel.is_premium && (
                     <div className="flex items-center space-x-1 text-yellow-400">
-                        <Lock className="w-4 h-4" />
+                        {
+                            subscription?.subscription_type === 'premium' && subscription?.status === 'active' ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />
+                        }
+
                         <span className="text-sm">Premium</span>
                     </div>
                 )}

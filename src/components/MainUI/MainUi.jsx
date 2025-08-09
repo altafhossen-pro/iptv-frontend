@@ -20,7 +20,8 @@ import {
     Eye,
     Loader2,
     X,
-    AlertCircle
+    AlertCircle,
+    Unlock
 } from 'lucide-react';
 import Header from '../Header/Header';
 import CurrentChannelInfo from './CurrentChannelInfo';
@@ -30,7 +31,7 @@ import Link from 'next/link';
 import { getCookie } from 'cookies-next';
 
 const MainUi = () => {
-    const { user } = useContext(AuthContext);
+    const { user, subscription } = useContext(AuthContext);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [volume, setVolume] = useState(() => {
@@ -233,7 +234,8 @@ const MainUi = () => {
 
                     hls.on(window.Hls.Events.ERROR, (event, data) => {
                         if (data.fatal) {
-                            setErrorMessage(`HLS Error: ${data.type} - ${data.details}`);
+                            console.log(data);
+                            setErrorMessage(`Something went wrong while loading the video.Please refresh this page and try again.`);
                             setShowErrorModal(true);
                             setIsLoading(false);
                         }
@@ -270,7 +272,7 @@ const MainUi = () => {
             return;
         }
 
-        console.log(channel);
+
         if (channel?.is_premium) {
             // Check if user is logged in and has access to premium channels
             if (!user?.email) {
@@ -278,7 +280,7 @@ const MainUi = () => {
                 setShowLoginNeedModal(true);
                 return;
             }
-            if (user?.subscription?.status !== 'active') {
+            if (subscription?.subscription_type !== 'premium' && subscription?.status !== 'active') {
                 setErrorMessage('This is a premium channel. Please upgrade your subscription to access it.');
                 setSubscriptionUpgradeModalOpen(true);
                 return;
@@ -299,7 +301,7 @@ const MainUi = () => {
         if (channel.m3u8_url) {
             // Add a small delay to prevent rapid switching
             loadingTimeoutRef.current = setTimeout(() => {
-                console.log(channel.m3u8_url," loading stream... m3u8_url");
+                console.log(channel.m3u8_url, " loading stream... m3u8_url");
                 loadHLSStream(`/api/stream?url=${encodeURIComponent(channel.m3u8_url)}`);
 
             }, 100);
@@ -659,8 +661,11 @@ const MainUi = () => {
                                                         />
                                                         <div className="absolute top-1 lg:top-2 right-1 lg:right-2 flex space-x-1">
                                                             {channel.is_premium && (
-                                                                <span className="bg-red-500 text-white px-1 lg:px-2 py-0.5 lg:py-1 rounded text-xs font-medium">
-                                                                    <Lock className="w-2 h-2 lg:w-3 lg:h-3 inline mr-1" />
+                                                                <span className={`${subscription?.subscription_type !== 'premium' && subscription?.status !== 'active' ? 'bg-red-500' : 'bg-emerald-600'} text-white px-1 lg:px-2 py-0.5 lg:py-1 rounded text-xs font-medium`}>
+                                                                    {
+                                                                        subscription?.subscription_type !== 'premium' && subscription?.status !== 'active' ? <Lock className="w-2 h-2 lg:w-3 lg:h-3 inline mr-1" /> : <Unlock className="w-2 h-2 lg:w-3 lg:h-3 inline mr-1" />
+                                                                    }
+
                                                                     <span className="">Pro</span>
                                                                 </span>
                                                             )}
@@ -744,7 +749,7 @@ const MainUi = () => {
                         <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
                             <button
                                 onClick={() => setShowErrorModal(false)}
-                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-sm lg:text-base"
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-sm lg:text-base cursor-pointer"
                             >
                                 Close
                             </button>
@@ -755,7 +760,7 @@ const MainUi = () => {
                                         loadHLSStream(currentChannel.m3u8_url);
                                     }
                                 }}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-sm lg:text-base"
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-sm lg:text-base cursor-pointer"
                             >
                                 Try Again
                             </button>
@@ -775,11 +780,11 @@ const MainUi = () => {
                         <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
                             <button
                                 onClick={() => setShowLoginNeedModal(false)}
-                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-sm lg:text-base"
+                                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-sm lg:text-base cursor-pointer"
                             >
                                 Close
                             </button>
-                            <Link href="/login" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-sm lg:text-base block text-center">
+                            <Link href="/login" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-sm lg:text-base block text-center cursor-pointer">
                                 Login
                             </Link>
                         </div>

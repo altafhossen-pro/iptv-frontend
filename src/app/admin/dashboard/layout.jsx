@@ -33,14 +33,14 @@ const AdminLayout = ({ children }) => {
     };
 
     const menuItems = [
-        { href: '/admin', icon: Home, label: 'Dashboard', exact: true },
+        { href: '/admin/dashboard', icon: Home, label: 'Dashboard', exact: true },
         { href: '/admin/dashboard/users', icon: Users, label: 'Users' },
         { href: '/admin/dashboard/channels', icon: Tv, label: 'Channels' },
         { href: '/admin/dashboard/categories', icon: FolderOpen, label: 'Categories' },
-        { href: '/admin/subscriptions', icon: UserCheck, label: 'Subscriptions' },
-        { href: '/admin/payments', icon: CreditCard, label: 'Payments' },
-        { href: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
-        { href: '/admin/settings', icon: Settings, label: 'Settings' },
+        { href: '/admin/dashboard/subscriptions', icon: UserCheck, label: 'Subscriptions' },
+        { href: '/admin/dashboard/payments', icon: CreditCard, label: 'Payments' },
+        { href: '/admin/dashboard/analytics', icon: BarChart3, label: 'Analytics' },
+        { href: '/admin/dashboard/settings', icon: Settings, label: 'Settings' },
     ];
 
     const isActive = (href, exact = false) => {
@@ -118,7 +118,8 @@ const AdminLayout = ({ children }) => {
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+
                 {/* Top Header */}
                 <header className="bg-white shadow-sm border-b border-gray-200 px-4 lg:px-6 py-4 flex-shrink-0">
                     <div className="flex items-center justify-between">
@@ -147,7 +148,8 @@ const AdminLayout = ({ children }) => {
                 </header>
 
                 {/* Page Content */}
-                <main className="flex-1 p-4 lg:p-6 bg-gray-50 overflow-y-auto custom-scrollbar">
+                <main className="flex-1 p-4 lg:p-6 bg-gray-50 overflow-y-auto overflow-x-hidden custom-scrollbar">
+
                     {children}
                 </main>
             </div>
