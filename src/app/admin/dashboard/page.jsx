@@ -16,22 +16,10 @@ import {
     Eye,
     Activity
 } from 'lucide-react';
+import { getCookie } from 'cookies-next';
 
 const AdminDashboard = () => {
-    const [stats, setStats] = useState({
-        totalUsers: 0,
-        totalChannels: 0,
-        totalCategories: 0,
-        totalDuePayments: 0,
-        totalPayments: 0,
-        totalSubscriptions: 0,
-        activeUsers: 0,
-        inactiveUsers: 0,
-        todayRevenue: 0,
-        monthlyRevenue: 0,
-        onlineUsers: 0,
-        premiumUsers: 0
-    });
+    const [stats, setStats] = useState({});
 
     const [isLoading, setIsLoading] = useState(true);
 
@@ -39,26 +27,25 @@ const AdminDashboard = () => {
     useEffect(() => {
         const fetchDashboardStats = async () => {
             try {
-                // Simulate API call
-                setTimeout(() => {
-                    setStats({
-                        totalUsers: 15847,
-                        totalChannels: 245,
-                        totalCategories: 28,
-                        totalDuePayments: 8950.50,
-                        totalPayments: 125650.75,
-                        totalSubscriptions: 12459,
-                        activeUsers: 11256,
-                        inactiveUsers: 4591,
-                        todayRevenue: 2850.25,
-                        monthlyRevenue: 45120.80,
-                        onlineUsers: 3247,
-                        premiumUsers: 8934
-                    });
-                    setIsLoading(false);
-                }, 1000);
+
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/admin/get-dashboard`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        "Authorization": `Bearer ${getCookie('token')}`
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to fetch dashboard stats');
+                }
+                const data = await response.json();
+                setStats(data?.data) || {};
+
+
             } catch (error) {
                 console.error('Error fetching dashboard stats:', error);
+            }
+            finally {
                 setIsLoading(false);
             }
         };
@@ -103,23 +90,17 @@ const AdminDashboard = () => {
         },
         {
             title: 'Active Users',
-            value: stats.activeUsers,
+            value: stats.totalActiveUsers,
             icon: UserCheck,
             color: 'bg-green-500',
             trend: { positive: true, value: 8.2 }
         },
         {
             title: 'Inactive Users',
-            value: stats.inactiveUsers,
+            value: stats?.totalInactiveUsers,
             icon: UserX,
             color: 'bg-red-500',
             trend: { positive: false, value: 3.1 }
-        },
-        {
-            title: 'Online Now',
-            value: stats.onlineUsers,
-            icon: Activity,
-            color: 'bg-emerald-500',
         },
         {
             title: 'Total Channels',
@@ -136,7 +117,7 @@ const AdminDashboard = () => {
         },
         {
             title: 'Premium Users',
-            value: stats.premiumUsers,
+            value: stats.totalPremiumSubscriptions,
             icon: CheckCircle,
             color: 'bg-yellow-500',
             trend: { positive: true, value: 15.3 }
@@ -152,32 +133,24 @@ const AdminDashboard = () => {
             title: 'Total Payments',
             value: stats.totalPayments,
             icon: DollarSign,
-            color: 'bg-green-600',
-            prefix: '$',
+            color: 'bg-blue-600',
+            prefix: '',
             trend: { positive: true, value: 18.4 }
         },
         {
-            title: 'Due Payments',
-            value: stats.totalDuePayments,
-            icon: AlertCircle,
-            color: 'bg-red-600',
-            prefix: '$',
+            title: 'Total Completed Payments',
+            value: stats.totalCompletedPayments,
+            icon: DollarSign,
+            color: 'bg-teal-600',
+            prefix: '',
             trend: { positive: false, value: 5.2 }
         },
         {
-            title: "Today's Revenue",
-            value: stats.todayRevenue,
-            icon: TrendingUp,
-            color: 'bg-teal-500',
-            prefix: '$'
-        },
-        {
-            title: 'Monthly Revenue',
-            value: stats.monthlyRevenue,
+            title: 'Total Manual Payments',
+            value: stats.totalManualPayments,
             icon: CreditCard,
             color: 'bg-cyan-500',
-            prefix: '$',
-            trend: { positive: true, value: 22.1 }
+            prefix: '',
         }
     ];
 
@@ -207,7 +180,7 @@ const AdminDashboard = () => {
                                 {isLoading ? (
                                     <div className="h-8 bg-blue-400 rounded animate-pulse"></div>
                                 ) : (
-                                    `$${(stats.totalPayments + stats.todayRevenue).toLocaleString()}`
+                                    `${stats.totalRevenue ? stats.totalRevenue.toLocaleString() : '0'} TK`
                                 )}
                             </div>
                         </div>
@@ -271,35 +244,7 @@ const AdminDashboard = () => {
                 ))}
             </div>
 
-            {/* Recent Activity Section */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 lg:p-6">
-                <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4">System Status</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
-                        <CheckCircle className="w-5 h-5 text-green-600" />
-                        <div>
-                            <p className="font-medium text-gray-900">Server Status</p>
-                            <p className="text-sm text-green-600">Online & Healthy</p>
-                        </div>
-                    </div>
 
-                    <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
-                        <Activity className="w-5 h-5 text-blue-600" />
-                        <div>
-                            <p className="font-medium text-gray-900">Streaming Quality</p>
-                            <p className="text-sm text-blue-600">Excellent (99.8%)</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg">
-                        <Eye className="w-5 h-5 text-yellow-600" />
-                        <div>
-                            <p className="font-medium text-gray-900">Peak Viewers</p>
-                            <p className="text-sm text-yellow-600">5,847 (Today)</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 };

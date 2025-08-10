@@ -31,30 +31,23 @@ const ManualPaymentManagement = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
-    const [currentChannel, setCurrentChannel] = useState(null);
+    const [selectedPayment, setSelectedPayment] = useState(null);
+    const [showApproveModal, setShowApproveModal] = useState(false);
     const [pagination, setPagination] = useState({
         current_page: 1,
         total_pages: 1,
         total_records: 0,
         per_page: 20
     });
+    const handleOpenApproveModal = (payment) => {
+        setSelectedPayment(payment._id);
+        setShowApproveModal(true);
+    }
+
 
     const [formData, setFormData] = useState({
-        name: '',
-        description: '',
-        category_id: '',
-        streaming_url: '',
-        m3u8_url: '',
-        thumbnail: '',
-        logo: '',
-        is_premium: false,
-        is_online: true,
-        quality: 'HD',
-        language: 'English',
-        country: 'International',
-        sort_order: 0
+        months: 1,
+        is_online: false
     });
 
     // Fetch payments from API
@@ -106,26 +99,36 @@ const ManualPaymentManagement = () => {
         }));
     };
 
-    const handleCreateChannel = async () => {
-        setModalMode('create');
-        setCurrentChannel(null);
-        setFormData({
-            name: '',
-            description: '',
-            category_id: '',
-            streaming_url: '',
-            m3u8_url: '',
-            thumbnail: '',
-            logo: '',
-            is_premium: false,
-            is_online: true,
-            quality: 'HD',
-            language: 'English',
-            country: 'International',
-            sort_order: 0
-        });
-        setIsModalOpen(true);
+
+    const handleApproveManualPayment = async () => {
+        try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/subscription/admin/approve-manual-payment`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    "Authorization": `Bearer ${getCookie('token') || ''}`
+                },
+                body: JSON.stringify({
+                    paymentId : selectedPayment,
+                    months: formData.months
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                toast.success('Payment approved successfully!');
+                setShowApproveModal(false);
+                fetchPayments(pagination.current_page, null, selectedStatus);
+            } else {
+                toast.error(data.message || 'Failed to approve payment');
+            }
+        } catch (error) {
+            console.error('Error approving payment:', error);
+            toast.error('Failed to approve payment. Please try again.');
+        }
     };
+
 
 
 
@@ -388,6 +391,7 @@ const ManualPaymentManagement = () => {
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
+                                                        onClick={() => handleOpenApproveModal(payment)}
                                                         title='Approve Payment'
                                                         className="text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition-colors cursor-pointer"
                                                     >
@@ -478,26 +482,71 @@ const ManualPaymentManagement = () => {
                         </div>
                     </div>
 
-                    {/* Create/Edit Modal */}
-                    {isModalOpen && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-                                <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                                    <h2 className="text-xl font-semibold text-gray-900">
-                                        {modalMode === 'create' ? 'Add New Channel' : 'Edit Channel'}
-                                    </h2>
-                                    <button
-                                        onClick={() => setIsModalOpen(false)}
-                                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                                    >
-                                        <X className="w-6 h-6" />
-                                    </button>
+                    {/* Approve Payment Modal */}
+                    {
+                        showApproveModal && (
+                            <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+                                <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h2 className="text-xl font-semibold">Approve Payment</h2>
+                                        <button onClick={() => setShowApproveModal(false)} className="text-gray-500 hover:text-gray-700">
+                                            <X className="w-6 h-6" />
+                                        </button>
+                                    </div>
+                                    <p>Are you sure you want to approve this payment?</p>
+
+                                    <div>
+                                        <label className="block mt-4 text-sm font-medium text-gray-700">
+                                            Select Month
+
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="months"
+                                            id="months"
+                                            placeholder="Enter number of months"
+                                            value={formData.months}
+                                            onChange={handleInputChange}
+                                            className="mt-1 py-3 px-2 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                            min="1"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className='my-6'>
+                                        <label className='inline-flex items-center text-sm text-black'>
+                                            <input
+                                                type='checkbox'
+                                                required
+                                                name='terms'
+                                                id='terms'
+                                                checked={formData.terms || false}
+                                                onChange={handleInputChange}
+                                                className='form-checkbox h-5 w-5 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 cursor-pointer'
+                                            />
+                                            <span className='ml-3 cursor-pointer select-none'>
+                                                I confirm that I want to approve this payment
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <div className="mt-4 flex justify-end space-x-2">
+                                        <button
+                                            onClick={() => setShowApproveModal(false)}
+                                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleApproveManualPayment}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                        >
+                                            Approve
+                                        </button>
+                                    </div>
                                 </div>
-
-
                             </div>
-                        </div>
-                    )}
+                        )
+                    }
                 </div>
             </div>
         </div>

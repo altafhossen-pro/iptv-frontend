@@ -60,7 +60,11 @@ const MainUi = () => {
     const loadingTimeoutRef = useRef(null);
     const [selectedPremiumFilter, setSelectedPremiumFilter] = useState('all'); // 'all', 'free', 'premium'
     const [hasUserInteracted, setHasUserInteracted] = useState(false);
-
+    const [isBuffering, setIsBuffering] = useState(false);
+    const [bufferHealth, setBufferHealth] = useState(0);
+    const [retryCount, setRetryCount] = useState(0);
+    const [streamQuality, setStreamQuality] = useState('auto');
+    const [lastBufferTime, setLastBufferTime] = useState(0);
 
 
     useEffect(() => {
@@ -116,6 +120,95 @@ const MainUi = () => {
         fetchCategories();
     }, []);
 
+    const [connectionQuality, setConnectionQuality] = useState('good');
+
+    // Add this function to monitor buffer health
+    const monitorBufferHealth = () => {
+        const video = videoRef.current;
+        if (!video || !video.buffered.length) return;
+
+        const currentTime = video.currentTime;
+        const buffered = video.buffered;
+
+        for (let i = 0; i < buffered.length; i++) {
+            if (currentTime >= buffered.start(i) && currentTime <= buffered.end(i)) {
+                const bufferAhead = buffered.end(i) - currentTime;
+                setBufferHealth(bufferAhead);
+
+                if (bufferAhead < 2) {
+                    setConnectionQuality('poor');
+                } else if (bufferAhead < 5) {
+                    setConnectionQuality('fair');
+                } else {
+                    setConnectionQuality('good');
+                }
+                break;
+            }
+        }
+    };
+
+    // Monitor buffer every 2 seconds
+    useEffect(() => {
+        const interval = setInterval(monitorBufferHealth, 2000);
+        return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        const handleWaiting = () => {
+            console.log('Video waiting for data...');
+            setIsBuffering(true);
+        };
+
+        const handlePlaying = () => {
+            console.log('Video started playing');
+            setIsBuffering(false);
+            setIsLoading(false);
+        };
+
+        const handleCanPlay = () => {
+            console.log('Video can start playing');
+            setIsLoading(false);
+        };
+
+        const handleStalled = () => {
+            console.log('Video stalled');
+            setIsBuffering(true);
+        };
+
+        const handleSeeking = () => {
+            setIsBuffering(true);
+        };
+
+        const handleSeeked = () => {
+            setIsBuffering(false);
+        };
+
+        const handleLoadStart = () => {
+            console.log('Video load started');
+            setIsLoading(true);
+        };
+
+        video.addEventListener('waiting', handleWaiting);
+        video.addEventListener('playing', handlePlaying);
+        video.addEventListener('canplay', handleCanPlay);
+        video.addEventListener('stalled', handleStalled);
+        video.addEventListener('seeking', handleSeeking);
+        video.addEventListener('seeked', handleSeeked);
+        video.addEventListener('loadstart', handleLoadStart);
+
+        return () => {
+            video.removeEventListener('waiting', handleWaiting);
+            video.removeEventListener('playing', handlePlaying);
+            video.removeEventListener('canplay', handleCanPlay);
+            video.removeEventListener('stalled', handleStalled);
+            video.removeEventListener('seeking', handleSeeking);
+            video.removeEventListener('seeked', handleSeeked);
+            video.removeEventListener('loadstart', handleLoadStart);
+        };
+    }, []);
 
     const sortedChannels = channels.filter(channel => {
         const matchesSearch = channel.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -134,8 +227,15 @@ const MainUi = () => {
 
     // Load HLS stream
     const loadHLSStream = async (url) => {
+        console.log('loadHLSStream called with URL:', url);
+
         const loadScript = (src) => {
             return new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${src}"]`)) {
+                    resolve();
+                    return;
+                }
+
                 const script = document.createElement('script');
                 script.src = src;
                 script.onload = resolve;
@@ -144,107 +244,416 @@ const MainUi = () => {
             });
         };
 
-        if (isLoading) {
-            console.log('Stream already loading, ignoring new request');
-            return;
-        }
-
-        setIsLoading(true);
-        setShowErrorModal(false);
-
-        // Clean up previous HLS instance
-        if (hlsRef.current) {
-            try {
-                hlsRef.current.destroy();
-                hlsRef.current = null;
-            } catch (error) {
-                console.log('Error destroying previous HLS instance:', error);
-            }
-        }
-
-        // Reset video element
-        if (videoRef.current) {
-            try {
-                videoRef.current.pause();
-                videoRef.current.removeAttribute('src');
-                videoRef.current.load();
-                videoRef.current.volume = volume;
-                videoRef.current.muted = isMuted;
-            } catch (error) {
-                console.log('Error resetting video element:', error);
-            }
-        }
-
         try {
+            setIsLoading(true);
+            setIsBuffering(false);
+            setShowErrorModal(false);
+            setRetryCount(0);
+
+            // Clean up previous HLS instance
+            if (hlsRef.current) {
+                try {
+                    console.log('Destroying previous HLS instance');
+                    hlsRef.current.destroy();
+                    hlsRef.current = null;
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                } catch (error) {
+                    console.log('Error destroying previous HLS instance:', error);
+                }
+            }
+
+            // Reset video element
+            if (videoRef.current) {
+                try {
+                    console.log('Resetting video element');
+                    videoRef.current.pause();
+                    videoRef.current.removeAttribute('src');
+                    videoRef.current.load();
+                    videoRef.current.volume = volume;
+                    videoRef.current.muted = isMuted;
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (error) {
+                    console.log('Error resetting video element:', error);
+                }
+            }
+
+            // Test stream URL first
+            console.log('Testing stream URL...');
+            const testResponse = await fetch(url, {
+                method: 'HEAD',
+                signal: AbortSignal.timeout(8000)
+            });
+
+            if (!testResponse.ok) {
+                throw new Error(`Stream URL returned ${testResponse.status}`);
+            }
+
+            console.log('Stream URL test successful');
+
             // Check if HLS is supported natively (Safari)
-            if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+            if (videoRef.current && videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+                console.log('Using native HLS support');
                 videoRef.current.src = url;
+
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Timeout waiting for video to load')), 15000);
+
+                    const onLoadStart = () => {
+                        clearTimeout(timeout);
+                        videoRef.current.removeEventListener('loadstart', onLoadStart);
+                        videoRef.current.removeEventListener('error', onError);
+                        resolve();
+                    };
+
+                    const onError = (e) => {
+                        clearTimeout(timeout);
+                        videoRef.current.removeEventListener('loadstart', onLoadStart);
+                        videoRef.current.removeEventListener('error', onError);
+                        reject(new Error('Video load error'));
+                    };
+
+                    videoRef.current.addEventListener('loadstart', onLoadStart);
+                    videoRef.current.addEventListener('error', onError);
+                });
+
                 setIsLoading(false);
 
-                // Auto-play only if user has interacted (clicked on channel)
                 try {
                     await videoRef.current.play();
                     setIsPlaying(true);
+                    console.log('Native playback started successfully');
                 } catch (error) {
                     console.log('Auto-play prevented:', error);
                     setIsPlaying(false);
                 }
+
             } else {
-                // Try to load HLS.js from CDN
+                console.log('Loading HLS.js for browser compatibility');
+
                 if (!window.Hls) {
                     try {
                         await loadScript('https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js');
+                        await new Promise(resolve => setTimeout(resolve, 300));
                     } catch (error) {
-                        setErrorMessage('HLS library failed to load');
-                        setShowErrorModal(true);
-                        setIsLoading(false);
-                        return;
+                        throw new Error('HLS library failed to load');
                     }
                 }
 
                 if (window.Hls && window.Hls.isSupported()) {
+                    console.log('Creating new HLS instance with enhanced config');
+
                     const hls = new window.Hls({
                         debug: false,
                         enableWorker: true,
-                        lowLatencyMode: true,
-                        backBufferLength: 90
+                        lowLatencyMode: false,
+
+                        // Enhanced buffer settings for stability
+                        maxBufferLength: 120, // 2 minutes buffer
+                        maxBufferSize: 200 * 1000 * 1000, // 200MB
+                        maxBufferHole: 0.3,
+                        backBufferLength: 180, // 3 minutes back buffer
+
+                        // More aggressive loading
+                        maxLoadingDelay: 12,
+                        manifestLoadingTimeOut: 20000,
+                        levelLoadingTimeOut: 20000,
+                        fragLoadingTimeOut: 30000,
+
+                        // Enhanced retry settings
+                        manifestLoadingRetryDelay: 2000,
+                        levelLoadingRetryDelay: 2000,
+                        fragLoadingRetryDelay: 2000,
+                        manifestLoadingMaxRetry: 5,
+                        levelLoadingMaxRetry: 6,
+                        fragLoadingMaxRetry: 8,
+
+                        // Live streaming optimizations
+                        liveSyncDurationCount: 5,
+                        liveMaxLatencyDurationCount: 15,
+                        liveDurationInfinity: true,
+
+                        // Quality and loading
+                        startLevel: -1, // Auto quality
+                        capLevelToPlayerSize: true,
+                        testBandwidth: true,
+                        progressive: true,
+
+                        // Fragment settings
+                        fragLoadingMaxRetryTimeout: 128000,
+                        manifestLoadingMaxRetryTimeout: 128000,
+                        levelLoadingMaxRetryTimeout: 128000,
+
+                        // Additional buffer control
+                        nudgeOffset: 0.1,
+                        nudgeMaxRetry: 3,
+                        maxStarvationDelay: 4,
+                        maxSeekHole: 2
                     });
 
                     hlsRef.current = hls;
+
+                    // Enhanced buffer monitoring
+                    let bufferMonitorInterval;
+                    let stallRecoveryAttempts = 0;
+                    const maxStallRecoveryAttempts = 8;
+                    let isRecovering = false;
+
+                    const startBufferMonitoring = () => {
+                        bufferMonitorInterval = setInterval(() => {
+                            const video = videoRef.current;
+                            if (!video) return;
+
+                            const currentTime = video.currentTime;
+                            const buffered = video.buffered;
+
+                            if (buffered.length > 0) {
+                                for (let i = 0; i < buffered.length; i++) {
+                                    if (currentTime >= buffered.start(i) && currentTime <= buffered.end(i)) {
+                                        const bufferAhead = buffered.end(i) - currentTime;
+                                        setBufferHealth(bufferAhead);
+
+                                        // Show buffering spinner if buffer is very low
+                                        if (bufferAhead < 1 && !video.paused) {
+                                            setIsBuffering(true);
+                                        } else if (bufferAhead > 3) {
+                                            setIsBuffering(false);
+                                        }
+
+                                        // If buffer is critically low, try to help
+                                        if (bufferAhead < 0.5 && !isRecovering && !video.paused) {
+                                            isRecovering = true;
+                                            console.log('Critical buffer level, attempting preemptive recovery');
+
+                                            setTimeout(() => {
+                                                try {
+                                                    hls.trigger(window.Hls.Events.BUFFER_FLUSHING, {
+                                                        startOffset: 0,
+                                                        endOffset: Number.POSITIVE_INFINITY
+                                                    });
+                                                } catch (e) {
+                                                    console.log('Buffer flush failed:', e);
+                                                }
+                                                isRecovering = false;
+                                            }, 1000);
+                                        }
+                                        break;
+                                    }
+                                }
+                            } else {
+                                setBufferHealth(0);
+                                if (!video.paused) {
+                                    setIsBuffering(true);
+                                }
+                            }
+                        }, 1000);
+                    };
+
+                    const stopBufferMonitoring = () => {
+                        if (bufferMonitorInterval) {
+                            clearInterval(bufferMonitorInterval);
+                            bufferMonitorInterval = null;
+                        }
+                    };
+
+                    // Enhanced error recovery
+                    const recoverFromBufferStall = async (data) => {
+                        stallRecoveryAttempts++;
+                        setRetryCount(stallRecoveryAttempts);
+                        setIsBuffering(true);
+
+                        console.log(`Buffer stall recovery attempt ${stallRecoveryAttempts}/${maxStallRecoveryAttempts}`);
+
+                        if (stallRecoveryAttempts > maxStallRecoveryAttempts) {
+                            console.error('Max stall recovery attempts reached');
+                            setErrorMessage('Stream keeps buffering. Please try another channel or check your internet connection.');
+                            setShowErrorModal(true);
+                            setIsBuffering(false);
+                            setIsLoading(false);
+                            return;
+                        }
+
+                        try {
+                            const video = videoRef.current;
+                            if (!video) return;
+
+                            // Different recovery strategies based on attempt count
+                            if (stallRecoveryAttempts <= 2) {
+                                // Light recovery - just recover media error
+                                console.log('Light recovery: Media error recovery');
+                                hls.recoverMediaError();
+
+                            } else if (stallRecoveryAttempts <= 4) {
+                                // Medium recovery - flush buffer and recover
+                                console.log('Medium recovery: Buffer flush + Media recovery');
+                                hls.trigger(window.Hls.Events.BUFFER_RESET);
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                                hls.recoverMediaError();
+
+                            } else if (stallRecoveryAttempts <= 6) {
+                                // Aggressive recovery - swap codec and recover
+                                console.log('Aggressive recovery: Codec swap + Media recovery');
+                                try {
+                                    hls.swapAudioCodec();
+                                } catch (e) {
+                                    console.log('Codec swap failed:', e);
+                                }
+                                hls.recoverMediaError();
+
+                            } else {
+                                // Nuclear option - full restart
+                                console.log('Nuclear recovery: Full HLS restart');
+                                const currentTime = video.currentTime;
+
+                                hls.detachMedia();
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                                hls.attachMedia(video);
+                                hls.startLoad(currentTime);
+                            }
+
+                            // Give recovery some time
+                            setTimeout(() => {
+                                if (bufferHealth > 1) {
+                                    stallRecoveryAttempts = Math.max(0, stallRecoveryAttempts - 1);
+                                    setIsBuffering(false);
+                                    console.log('Recovery successful, reduced attempt count');
+                                }
+                            }, 3000);
+
+                        } catch (error) {
+                            console.error('Recovery failed:', error);
+                            setTimeout(() => recoverFromBufferStall(data), 2000 * stallRecoveryAttempts);
+                        }
+                    };
+
+                    // Set up event listeners
+                    const setupHLSEventListeners = () => {
+                        return new Promise((resolve, reject) => {
+                            let resolved = false;
+                            const timeout = setTimeout(() => {
+                                if (!resolved) {
+                                    resolved = true;
+                                    reject(new Error('HLS loading timeout'));
+                                }
+                            }, 30000);
+
+                            hls.on(window.Hls.Events.MANIFEST_PARSED, async () => {
+                                if (resolved) return;
+                                resolved = true;
+                                clearTimeout(timeout);
+
+                                console.log('HLS manifest parsed successfully');
+                                console.log('Available levels:', hls.levels.length);
+
+                                // Reset recovery counters
+                                stallRecoveryAttempts = 0;
+                                setRetryCount(0);
+
+                                // Start buffer monitoring
+                                startBufferMonitoring();
+
+                                if (videoRef.current) {
+                                    videoRef.current.volume = volume;
+                                    videoRef.current.muted = isMuted;
+
+                                    try {
+                                        await videoRef.current.play();
+                                        setIsPlaying(true);
+                                        setIsLoading(false);
+                                        setIsBuffering(false);
+                                        console.log('HLS playback started successfully');
+                                    } catch (error) {
+                                        console.log('Auto-play prevented:', error);
+                                        setIsPlaying(false);
+                                        setIsLoading(false);
+                                    }
+                                }
+
+                                resolve();
+                            });
+
+                            hls.on(window.Hls.Events.ERROR, (event, data) => {
+                                console.error('HLS Error:', data);
+
+                                if (data.fatal) {
+                                    stopBufferMonitoring();
+
+                                    if (!resolved) {
+                                        resolved = true;
+                                        clearTimeout(timeout);
+
+                                        let errorMsg = 'Fatal stream error. Please try another channel.';
+
+                                        if (data.type === window.Hls.ErrorTypes.NETWORK_ERROR) {
+                                            errorMsg = 'Network error: Unable to load the stream. Please check your connection.';
+                                        } else if (data.type === window.Hls.ErrorTypes.MEDIA_ERROR) {
+                                            errorMsg = 'Media error: Stream format issue. Please try again.';
+                                        }
+
+                                        reject(new Error(errorMsg));
+                                    }
+                                } else {
+                                    // Handle non-fatal errors
+                                    if (data.details === 'bufferStalledError' ||
+                                        data.details === 'bufferSeekOverHole' ||
+                                        data.details === 'bufferNudgeOnStall') {
+
+                                        recoverFromBufferStall(data);
+                                    } else {
+                                        console.warn('Non-fatal HLS error:', data);
+                                    }
+                                }
+                            });
+
+                            // Useful events
+                            hls.on(window.Hls.Events.BUFFER_CREATED, () => {
+                                console.log('Buffer created');
+                            });
+
+                            hls.on(window.Hls.Events.BUFFER_APPENDED, () => {
+                                // Buffer is getting filled
+                                if (isBuffering && bufferHealth > 2) {
+                                    setIsBuffering(false);
+                                }
+                            });
+
+                            hls.on(window.Hls.Events.LEVEL_SWITCHED, (event, data) => {
+                                console.log('Quality level switched to:', data.level);
+                                if (hls.levels[data.level]) {
+                                    setStreamQuality(hls.levels[data.level].height + 'p');
+                                }
+                            });
+
+                            hls.on(window.Hls.Events.FRAG_BUFFERED, () => {
+                                // Fragment successfully buffered
+                                setLastBufferTime(Date.now());
+                                if (stallRecoveryAttempts > 0) {
+                                    stallRecoveryAttempts = Math.max(0, stallRecoveryAttempts - 1);
+                                    setRetryCount(stallRecoveryAttempts);
+                                }
+                            });
+
+                            // Cleanup function
+                            hls.on(window.Hls.Events.DESTROYING, () => {
+                                stopBufferMonitoring();
+                            });
+                        });
+                    };
+
+                    // Load source and attach to video
+                    console.log('Loading HLS source...');
                     hls.loadSource(url);
                     hls.attachMedia(videoRef.current);
 
-                    hls.on(window.Hls.Events.MANIFEST_PARSED, async () => {
-                        console.log('HLS stream loaded successfully');
-                        if (videoRef.current) {
-                            videoRef.current.volume = volume;
-                            videoRef.current.muted = isMuted;
+                    // Wait for HLS to be ready
+                    await setupHLSEventListeners();
 
-                            // Auto-play only if user has interacted (clicked on channel)
-                            try {
-                                await videoRef.current.play();
-                                setIsPlaying(true);
-                            } catch (error) {
-                                console.log('Auto-play prevented:', error);
-                                setIsPlaying(false);
-                            }
-                        }
-                        setIsLoading(false);
-                    });
-
-                    hls.on(window.Hls.Events.ERROR, (event, data) => {
-                        if (data.fatal) {
-                            console.log(data);
-                            setErrorMessage(`Something went wrong while loading the video.Please refresh this page and try again.`);
-                            setShowErrorModal(true);
-                            setIsLoading(false);
-                        }
-                    });
                 } else {
+                    // Fallback
+                    console.log('Using fallback video source');
                     videoRef.current.src = url;
                     setIsLoading(false);
 
-                    // Auto-play only if user has interacted (clicked on channel)
                     if (hasUserInteracted) {
                         try {
                             await videoRef.current.play();
@@ -253,28 +662,33 @@ const MainUi = () => {
                             console.log('Auto-play prevented:', error);
                             setIsPlaying(false);
                         }
-                    } else {
-                        setIsPlaying(false);
                     }
                 }
             }
+
+            console.log('Stream loaded successfully');
+
         } catch (error) {
             console.error('Stream loading error:', error);
             setIsLoading(false);
-            setErrorMessage('Something went wrong. Please refresh and try again.');
+            setIsBuffering(false);
+            setErrorMessage(error.message || 'Something went wrong. Please refresh and try again.');
             setShowErrorModal(true);
         }
     };
 
-    const handleChannelSelect = (channel) => {
+
+    const handleChannelSelect = async (channel) => {
+        console.log('Channel selected:', channel.name);
+
         // Prevent selecting the same channel multiple times
-        if (lastSelectedChannel?._id === channel._id) {
+        if (lastSelectedChannel?._id === channel._id && !showErrorModal) {
+            console.log('Same channel already selected');
             return;
         }
 
-
+        // Premium channel access check
         if (channel?.is_premium) {
-            // Check if user is logged in and has access to premium channels
             if (!user?.email) {
                 setErrorMessage('This is a premium channel. Please log in to access it.');
                 setShowLoginNeedModal(true);
@@ -287,24 +701,44 @@ const MainUi = () => {
             }
         }
 
+        // Clear previous states
+        setShowErrorModal(false);
+        setIsLoading(true);
+
         // Clear any existing loading timeout
         if (loadingTimeoutRef.current) {
             clearTimeout(loadingTimeoutRef.current);
+            loadingTimeoutRef.current = null;
         }
 
+        // Set current channel immediately
         setCurrentChannel(channel);
         setLastSelectedChannel(channel);
-
-        // ✅ এইখানে change করো - channel select করার সাথে সাথেই user interaction mark করো
         setHasUserInteracted(true);
 
-        if (channel.m3u8_url) {
-            // Add a small delay to prevent rapid switching
-            loadingTimeoutRef.current = setTimeout(() => {
-                console.log(channel.m3u8_url, " loading stream... m3u8_url");
-                loadHLSStream(`/api/stream?url=${encodeURIComponent(channel.m3u8_url)}`);
+        // Check if channel has valid stream URL
+        if (!channel.m3u8_url) {
+            console.error('No stream URL found for channel:', channel.name);
+            setErrorMessage('Stream URL not available for this channel.');
+            setShowErrorModal(true);
+            setIsLoading(false);
+            return;
+        }
 
-            }, 100);
+        try {
+            console.log('Loading stream for:', channel.name);
+            console.log('Stream URL:', channel.m3u8_url);
+
+            // Add delay to prevent rapid switching issues
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            await loadHLSStream(`/api/stream?url=${encodeURIComponent(channel.m3u8_url)}`);
+
+        } catch (error) {
+            console.error('Error in handleChannelSelect:', error);
+            setErrorMessage('Failed to load channel. Please try again.');
+            setShowErrorModal(true);
+            setIsLoading(false);
         }
     };
 
@@ -443,6 +877,7 @@ const MainUi = () => {
                 <div className="w-full lg:w-1/2 p-3 lg:p-6">
                     <div className="max-w-full lg:max-w-2xl mx-auto">
                         {/* Video Player with 16:9 Aspect Ratio */}
+                        {/* Video Player with Enhanced Loading States - Replace your video player section */}
                         <div className="relative bg-black rounded-lg overflow-hidden shadow-2xl">
                             <div className="aspect-video relative">
                                 {currentChannel ? (
@@ -455,6 +890,7 @@ const MainUi = () => {
                                             onError={(e) => {
                                                 console.error('Video error:', e);
                                                 setIsLoading(false);
+                                                setIsBuffering(false);
                                                 setErrorMessage('Video playback error. Please try again.');
                                                 setShowErrorModal(true);
                                             }}
@@ -463,13 +899,85 @@ const MainUi = () => {
                                             Your browser does not support the video tag.
                                         </video>
 
-                                        {/* Loading Overlay */}
-                                        {isLoading && (
-                                            <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
+                                        {/* Initial Loading Overlay */}
+                                        {isLoading && !isBuffering && (
+                                            <div className="absolute inset-0 bg-black/90 flex items-center justify-center">
                                                 <div className="text-center">
-                                                    <Loader2 className="w-8 h-8 lg:w-12 lg:h-12 mx-auto mb-4 animate-spin text-blue-400" />
-                                                    <p className="text-white text-base lg:text-lg">Loading stream...</p>
+                                                    <Loader2 className="w-12 h-12 lg:w-16 lg:h-16 mx-auto mb-4 animate-spin text-blue-400" />
+                                                    <p className="text-white text-lg lg:text-xl mb-2">Loading stream...</p>
+                                                    <p className="text-gray-400 text-sm">Please wait while we prepare your channel</p>
                                                 </div>
+                                            </div>
+                                        )}
+
+                                        {/* Buffering Overlay */}
+                                        {isBuffering && !isLoading && (
+                                            <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                                                <div className="text-center bg-black/50 rounded-lg p-4 lg:p-6">
+                                                    <div className="relative">
+                                                        <Loader2 className="w-8 h-8 lg:w-10 lg:h-10 mx-auto mb-3 animate-spin text-blue-400" />
+                                                        {retryCount > 0 && (
+                                                            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                                                {retryCount}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-white text-sm lg:text-base mb-1">Buffering...</p>
+                                                    {retryCount > 0 && (
+                                                        <p className="text-yellow-400 text-xs lg:text-sm">
+                                                            Retry attempt {retryCount}/8
+                                                        </p>
+                                                    )}
+                                                    {bufferHealth > 0 && (
+                                                        <div className="mt-2">
+                                                            <div className="bg-gray-700 rounded-full h-1 w-24 mx-auto">
+                                                                <div
+                                                                    className="bg-blue-400 h-1 rounded-full transition-all duration-300"
+                                                                    style={{ width: `${Math.min(100, (bufferHealth / 10) * 100)}%` }}
+                                                                />
+                                                            </div>
+                                                            <p className="text-gray-400 text-xs mt-1">
+                                                                Buffer: {bufferHealth.toFixed(1)}s
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Stream Quality & Buffer Health Indicator */}
+                                        {currentChannel && !isLoading && (
+                                            <div className="absolute top-2 lg:top-4 left-2 lg:left-4 flex flex-col space-y-2">
+                                                {/* Connection Quality */}
+                                                <div className="bg-black/70 text-white px-2 py-1 rounded text-xs lg:text-sm flex items-center space-x-2">
+                                                    <div className={`w-2 h-2 rounded-full ${bufferHealth > 5 ? 'bg-green-500' :
+                                                            bufferHealth > 2 ? 'bg-yellow-500' :
+                                                                'bg-red-500'
+                                                        }`}></div>
+                                                    <span className="hidden sm:inline">
+                                                        {bufferHealth > 5 ? 'Excellent' :
+                                                            bufferHealth > 2 ? 'Good' :
+                                                                'Poor'}
+                                                    </span>
+                                                    <span className="text-xs text-gray-300">
+                                                        {bufferHealth.toFixed(1)}s
+                                                    </span>
+                                                </div>
+
+                                                {/* Stream Quality */}
+                                                {streamQuality && streamQuality !== 'auto' && (
+                                                    <div className="bg-black/70 text-white px-2 py-1 rounded text-xs">
+                                                        {streamQuality}
+                                                    </div>
+                                                )}
+
+                                                {/* Retry Counter (only show if retrying) */}
+                                                {retryCount > 0 && (
+                                                    <div className="bg-red-500/80 text-white px-2 py-1 rounded text-xs flex items-center space-x-1">
+                                                        <AlertCircle className="w-3 h-3" />
+                                                        <span>Retry {retryCount}/8</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
 
@@ -479,13 +987,25 @@ const MainUi = () => {
                                                 <div className="flex items-center space-x-2 lg:space-x-4">
                                                     <button
                                                         onClick={togglePlayPause}
-                                                        className="bg-blue-600 hover:bg-blue-700 rounded-full p-1.5 lg:p-2 transition-colors"
+                                                        disabled={isLoading || isBuffering}
+                                                        className={`bg-blue-600 hover:bg-blue-700 rounded-full p-1.5 lg:p-2 transition-colors ${(isLoading || isBuffering) ? 'opacity-50 cursor-not-allowed' : ''
+                                                            }`}
                                                     >
-                                                        {isPlaying ? <Pause className="w-4 h-4 lg:w-5 lg:h-5" /> : <Play className="w-4 h-4 lg:w-5 lg:h-5 ml-0.5" />}
+                                                        {isLoading || isBuffering ? (
+                                                            <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" />
+                                                        ) : isPlaying ? (
+                                                            <Pause className="w-4 h-4 lg:w-5 lg:h-5" />
+                                                        ) : (
+                                                            <Play className="w-4 h-4 lg:w-5 lg:h-5 ml-0.5" />
+                                                        )}
                                                     </button>
 
                                                     <div className="flex items-center space-x-1 lg:space-x-2">
-                                                        <button onClick={toggleMute} className="hover:text-blue-400 transition-colors">
+                                                        <button
+                                                            onClick={toggleMute}
+                                                            className="hover:text-blue-400 transition-colors disabled:opacity-50"
+                                                            disabled={isLoading || isBuffering}
+                                                        >
                                                             {isMuted ? <VolumeX className="w-3 h-3 lg:w-4 lg:h-4" /> : <Volume2 className="w-3 h-3 lg:w-4 lg:h-4" />}
                                                         </button>
                                                         <input
@@ -495,26 +1015,66 @@ const MainUi = () => {
                                                             step="0.1"
                                                             value={volume}
                                                             onChange={handleVolumeChange}
-                                                            className="w-12 lg:w-16 accent-blue-600"
+                                                            disabled={isLoading || isBuffering}
+                                                            className="w-12 lg:w-16 accent-blue-600 disabled:opacity-50"
                                                         />
                                                     </div>
 
-                                                    {/* <div className="text-xs lg:text-sm text-gray-300 hidden sm:block">
-                                                        <span className="flex items-center space-x-1 lg:space-x-2">
-                                                            <Eye className="w-3 h-3 lg:w-4 lg:h-4" />
-                                                            <span className="hidden sm:inline">{currentChannel.viewer_count?.toLocaleString()} watching</span>
-                                                            <span className="sm:hidden">{currentChannel.viewer_count?.toLocaleString()}</span>
-                                                        </span>
-                                                    </div> */}
+                                                    {/* Live indicator */}
+                                                    <div className="hidden sm:flex items-center space-x-2 text-xs lg:text-sm text-gray-300">
+                                                        <div className="flex items-center space-x-1">
+                                                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                                            <span>LIVE</span>
+                                                        </div>
+                                                        {currentChannel.viewer_count && (
+                                                            <div className="flex items-center space-x-1">
+                                                                <Eye className="w-3 h-3" />
+                                                                <span>{currentChannel.viewer_count?.toLocaleString()}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
 
-                                                <button
-                                                    onClick={toggleFullscreen}
-                                                    className="hover:text-blue-400 transition-colors"
-                                                >
-                                                    <Maximize className="w-3 h-3 lg:w-4 lg:h-4" />
-                                                </button>
+                                                <div className="flex items-center space-x-2">
+                                                    {/* Buffer health indicator */}
+                                                    {bufferHealth > 0 && !isLoading && (
+                                                        <div className="hidden lg:flex items-center space-x-1 text-xs text-gray-300">
+                                                            <div className="bg-gray-600 rounded-full h-1 w-8">
+                                                                <div
+                                                                    className={`h-1 rounded-full transition-all duration-300 ${bufferHealth > 5 ? 'bg-green-500' :
+                                                                            bufferHealth > 2 ? 'bg-yellow-500' :
+                                                                                'bg-red-500'
+                                                                        }`}
+                                                                    style={{ width: `${Math.min(100, (bufferHealth / 10) * 100)}%` }}
+                                                                />
+                                                            </div>
+                                                            <span>{bufferHealth.toFixed(1)}s</span>
+                                                        </div>
+                                                    )}
+
+                                                    <button
+                                                        onClick={toggleFullscreen}
+                                                        className="hover:text-blue-400 transition-colors disabled:opacity-50"
+                                                        disabled={isLoading || isBuffering}
+                                                    >
+                                                        <Maximize className="w-3 h-3 lg:w-4 lg:h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
+
+                                            {/* Buffer Progress Bar */}
+                                            {(isBuffering || bufferHealth < 3) && !isLoading && (
+                                                <div className="mt-2">
+                                                    <div className="bg-gray-700 rounded-full h-1 w-full">
+                                                        <div
+                                                            className="bg-blue-400 h-1 rounded-full transition-all duration-500 animate-pulse"
+                                                            style={{
+                                                                width: isBuffering ? '30%' : `${Math.min(100, (bufferHealth / 10) * 100)}%`
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </>
                                 ) : (
