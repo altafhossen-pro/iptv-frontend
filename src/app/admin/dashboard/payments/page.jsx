@@ -174,8 +174,8 @@ const PaymentManagement = () => {
 
 
     const filteredPayments = payments.filter(channel => {
-        const matchesSearch = channel.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            channel.description.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = channel?.name?.toLowerCase().includes(searchTerm?.toLowerCase()) ||
+            channel?.description?.toLowerCase()?.includes(searchTerm?.toLowerCase());
         return matchesSearch;
     });
 
