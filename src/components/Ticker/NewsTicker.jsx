@@ -35,7 +35,7 @@ const NewsTicker = ({
                         <AlertTriangle className="w-5 h-5 animate-pulse text-yellow-300" />
                     )}
                     <span className="font-bold text-sm whitespace-nowrap">
-                        ব্রেকিং নিউজ
+                        ঘোষণা
                     </span>
                 </div>
             </div>
