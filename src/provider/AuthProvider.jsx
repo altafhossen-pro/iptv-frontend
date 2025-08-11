@@ -42,7 +42,7 @@ const AuthProvider = ({ children }) => {
             }
         };
         fetchUser();
-        
+
 
     }, []);
 
@@ -56,7 +56,7 @@ const AuthProvider = ({ children }) => {
         }
     };
 
-    const data = { user, subscription, setUser, loading: isLoading, handleLogout };
+    const data = { user, subscription, setSubscription, setUser, loading: isLoading, handleLogout };
     return (
         <AuthContext.Provider value={data}>
             {children}

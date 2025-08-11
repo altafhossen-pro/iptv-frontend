@@ -2,6 +2,7 @@
 
 import React, { useContext, useState } from 'react';
 import { Mail, ArrowRight, Shield, CheckCircle, User, Phone, Lock, ArrowLeft } from 'lucide-react';
+import SocialLogin from '@/components/Auth/SocialLogin';
 import Header from '@/components/Header/Header';
 import toast from 'react-hot-toast';
 import { AuthContext } from '@/provider/AuthProvider';
@@ -11,7 +12,7 @@ import Link from 'next/link';
 
 const ThreeStepRegister = () => {
     const router = useRouter();
-    const { user, setUser } = useContext(AuthContext);
+    const { user, setUser ,setSubscription} = useContext(AuthContext);
     const [currentStep, setCurrentStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
@@ -24,6 +25,8 @@ const ThreeStepRegister = () => {
         confirmPassword: ''
     });
     const [otpSent, setOtpSent] = useState(false);
+
+
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({
@@ -122,7 +125,8 @@ const ThreeStepRegister = () => {
                 if (response.ok) {
                     const data = await response.json();
                     toast.success('Registration successful!');
-                    setUser(data?.data?.user); // Assuming the API returns user data
+                    setUser(data?.data?.user); 
+                    setSubscription(data?.data?.subscription || {});
                     setCookie('token', data?.data?.token, {
                         maxAge: 60 * 60 * 24 * 365,
                         path: '/',
@@ -171,13 +175,13 @@ const ThreeStepRegister = () => {
             <div className='flex items-center justify-center p-4'>
                 <div className='w-full max-w-md'>
                     {/* Header */}
-                    <div className='text-center mb-8'>
-                        <h1 className='text-4xl font-bold mb-2'>Create Account</h1>
+                    <div className='text-center mb-6'>
+                        <h1 className='text-3xl font-bold mb-2'>Create Account</h1>
                         <p className='text-gray-400'>Join us in just 3 simple steps</p>
                     </div>
 
                     {/* Step Indicator */}
-                    <div className='flex items-center justify-center mb-8'>
+                    <div className='flex items-center justify-center mb-6'>
                         <StepIndicator step={1} isActive={currentStep === 1} isCompleted={currentStep > 1} />
                         <div className={`w-12 h-0.5 mx-2 ${currentStep > 1 ? 'bg-green-500' : 'bg-gray-600'}`}></div>
                         <StepIndicator step={2} isActive={currentStep === 2} isCompleted={currentStep > 2} />
@@ -186,7 +190,7 @@ const ThreeStepRegister = () => {
                     </div>
 
                     {/* Form Container */}
-                    <div className='bg-gray-800 rounded-lg p-6 shadow-xl'>
+                    <div className='bg-gray-800 rounded-lg border border-gray-700 p-6'>
                         {/* Step 1: Email */}
                         {currentStep === 1 && (
                             <div>
@@ -419,14 +423,17 @@ const ThreeStepRegister = () => {
                     </div>
 
                     {/* Footer */}
-                    <div className='text-center mt-6'>
+                    <div className='text-center mt-4'>
                         <p className='text-sm text-gray-400'>
-                            Already have an account?
-                            <button className='text-blue-400 hover:underline ml-1'>
+                            Already have an account?{' '}
+                            <Link href='/login' className='text-purple-400 hover:text-purple-300 font-medium'>
                                 Sign In
-                            </button>
+                            </Link>
                         </p>
                     </div>
+
+                    {/* Social Login */}
+                    <SocialLogin type="signup" />
                 </div>
             </div>
         </div>

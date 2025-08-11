@@ -28,6 +28,7 @@ const Header = () => {
         <div className="hidden lg:flex items-center space-x-4">
           <nav className="space-x-4">
             <Link href="/" className="text-gray-300 px-2 hover:text-white">Home</Link>
+            <Link href="/pricing" className="text-gray-300 px-2 hover:text-white">Pricing</Link>
             <Link href="/about" className="text-gray-300 px-2 hover:text-white">About</Link>
             <Link href="/contact" className="text-gray-300 px-2 hover:text-white">Contact</Link>
             {
@@ -77,6 +78,13 @@ const Header = () => {
               onClick={closeMobileMenu}
             >
               Home
+            </Link>
+            <Link
+              href="/pricing"
+              className="text-gray-300 px-2 py-2 hover:text-white hover:bg-gray-700 rounded"
+              onClick={closeMobileMenu}
+            >
+              Pricing
             </Link>
             <Link
               href="/about"
