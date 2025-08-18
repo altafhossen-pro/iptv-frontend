@@ -1,28 +1,17 @@
-/* eslint-disable */
 'use client';
 
 import React, { useState, useRef, useEffect, useContext } from 'react';
-import {
-    Play,
-    Users,
-    Lock,
-    Search,
-    Filter,
-    Grid3X3,
-    List,
-    Eye,
-    Loader2,
-    X,
-    AlertCircle,
-    Unlock
-} from 'lucide-react';
 import Header from '../Header/Header';
 import CurrentChannelInfo from './CurrentChannelInfo';
 import KeyboardShortcut from './KeyboardShortcut';
 import { AuthContext } from '@/provider/AuthProvider';
 import Link from 'next/link';
+import { Play, Users, Lock, List, Grid3X3, Loader2, AlertCircle, Unlock, Search } from 'lucide-react';
 
-const DPlayerMainUi = () => {
+const CLAPPR_CDN = 'https://cdn.jsdelivr.net/npm/@clappr/player@latest/dist/clappr.min.js';
+const CLAPPR_CSS = 'https://cdn.jsdelivr.net/npm/@clappr/player@latest/dist/clappr.min.css';
+
+const ClapprPlayerMainUi = () => {
     const { user, subscription } = useContext(AuthContext);
     const [currentChannel, setCurrentChannel] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -38,31 +27,46 @@ const DPlayerMainUi = () => {
     const [channels, setChannels] = useState([]);
     const [categories, setCategories] = useState([]);
     const [selectedPremiumFilter, setSelectedPremiumFilter] = useState('all');
-
-    // Add state to track DPlayer loading status
-    const [dplayerLoaded, setDplayerLoaded] = useState(false);
-
-    // DPlayer specific refs
     const playerContainerRef = useRef(null);
-    const playerInstance = useRef(null);
+    const clapprPlayerRef = useRef(null);
+    const [containerId] = useState(() => `clappr-player-container-${Math.random().toString(36).substr(2, 9)}`);
+
+    // Load Clappr script and CSS
+    useEffect(() => {
+        if (!document.getElementById('clappr-css')) {
+            const link = document.createElement('link');
+            link.id = 'clappr-css';
+            link.rel = 'stylesheet';
+            link.href = CLAPPR_CSS;
+            document.head.appendChild(link);
+        }
+        if (!window.Clappr) {
+            const script = document.createElement('script');
+            script.src = CLAPPR_CDN;
+            script.async = true;
+            document.body.appendChild(script);
+            script.onload = () => {
+                console.log('Clappr script loaded:', window.Clappr);
+            };
+            return () => {
+                document.body.removeChild(script);
+            };
+        } else {
+            console.log('Clappr already loaded:', window.Clappr);
+        }
+    }, []);
 
     useEffect(() => {
-        // Fetch channels from API 
         const fetchChannels = async () => {
             try {
                 const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/channel?limit=100`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch channels');
-                }
+                if (!response.ok) throw new Error('Failed to fetch channels');
                 const data = await response.json();
                 setChannels(data?.data || []);
-            }
-            catch (error) {
-                console.error('Error fetching channels:', error);
+            } catch (error) {
                 setErrorMessage('Failed to load channels. Please try again later.');
                 setShowErrorModal(true);
-            }
-            finally {
+            } finally {
                 setInitialChannelsLoading(false);
             }
         };
@@ -70,23 +74,14 @@ const DPlayerMainUi = () => {
     }, []);
 
     useEffect(() => {
-        // Fetch categories from API 
         const fetchCategories = async () => {
             try {
                 const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/category`);
-                if (!response.ok) {
-                    throw new Error('Failed to fetch categories');
-                }
+                if (!response.ok) throw new Error('Failed to fetch categories');
                 const data = await response.json();
-                const allCategory = {
-                    _id: 'all',
-                    name: 'All',
-                    slug: 'all'
-                };
-                setCategories([allCategory, ...data?.data || []]);
-            }
-            catch (error) {
-                console.error('Error fetching categories:', error);
+                const allCategory = { _id: 'all', name: 'All', slug: 'all' };
+                setCategories([allCategory, ...(data?.data || [])]);
+            } catch (error) {
                 setErrorMessage('Failed to load categories. Please try again later.');
                 setShowErrorModal(true);
             }
@@ -94,50 +89,70 @@ const DPlayerMainUi = () => {
         fetchCategories();
     }, []);
 
-    // Load DPlayer script
+    // Restore last volume on mount (no last channel restore)
     useEffect(() => {
-        const loadDPlayer = async () => {
-            // Check if DPlayer is already loaded
-            if (window.DPlayer) {
-                setDplayerLoaded(true);
-                return;
+        const lastVolume = localStorage.getItem('clappr_last_volume');
+        if (lastVolume && clapprPlayerRef.current) {
+            clapprPlayerRef.current.setVolume(Number(lastVolume));
+        }
+    }, [channels]);
+
+    // Keyboard and click controls
+    useEffect(() => {
+        function handleKeyDown(e) {
+            if (!clapprPlayerRef.current) return;
+            if (e.key === 'f' || e.key === 'F') {
+                // Try Clappr fullscreen first
+                if (clapprPlayerRef.current.isFullscreen()) {
+                    clapprPlayerRef.current.exitFullscreen();
+                } else {
+                    clapprPlayerRef.current.toggleFullscreen();
+                    // Fallback to browser fullscreen if needed
+                    const container = playerContainerRef.current;
+                    if (container && !clapprPlayerRef.current.isFullscreen()) {
+                        if (container.requestFullscreen) container.requestFullscreen();
+                        else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+                        else if (container.mozRequestFullScreen) container.mozRequestFullScreen();
+                        else if (container.msRequestFullscreen) container.msRequestFullscreen();
+                    }
+                }
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                let v = clapprPlayerRef.current.getVolume();
+                v = Math.min(100, v + 5);
+                clapprPlayerRef.current.setVolume(v);
+                localStorage.setItem('clappr_last_volume', v);
+                e.preventDefault();
+            } else if (e.key === 'ArrowDown') {
+                let v = clapprPlayerRef.current.getVolume();
+                v = Math.max(0, v - 5);
+                clapprPlayerRef.current.setVolume(v);
+                localStorage.setItem('clappr_last_volume', v);
+                e.preventDefault();
             }
-
-            try {
-                // Load DPlayer CSS
-                const cssLink = document.createElement('link');
-                cssLink.rel = 'stylesheet';
-                cssLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/dplayer/1.27.1/DPlayer.min.css';
-                document.head.appendChild(cssLink);
-
-                // Load HLS.js first (required for DPlayer HLS support)
-                const hlsScript = document.createElement('script');
-                hlsScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.4.12/hls.min.js';
-                document.head.appendChild(hlsScript);
-
-                await new Promise((resolve) => {
-                    hlsScript.onload = resolve;
-                });
-
-                // Load DPlayer script
-                const dplayerScript = document.createElement('script');
-                dplayerScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/dplayer/1.27.1/DPlayer.min.js';
-                document.head.appendChild(dplayerScript);
-
-                await new Promise((resolve) => {
-                    dplayerScript.onload = resolve;
-                });
-
-                setDplayerLoaded(true);
-            } catch (error) {
-                console.error('Error loading DPlayer:', error);
-                setErrorMessage('Failed to load video player. Please refresh the page.');
-                setShowErrorModal(true);
-            }
-        };
-
-        loadDPlayer();
+        }
+        window.addEventListener('keydown', handleKeyDown, { passive: false });
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
+
+    // Click to play/pause
+    useEffect(() => {
+        const container = playerContainerRef.current;
+        function handleClick() {
+            if (!clapprPlayerRef.current) return;
+            if (clapprPlayerRef.current.isPlaying()) {
+                clapprPlayerRef.current.pause();
+            } else {
+                clapprPlayerRef.current.play();
+            }
+        }
+        if (container) {
+            container.addEventListener('click', handleClick);
+        }
+        return () => {
+            if (container) container.removeEventListener('click', handleClick);
+        };
+    }, [currentChannel]);
 
     const sortedChannels = channels.filter(channel => {
         const matchesSearch = channel.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -154,120 +169,74 @@ const DPlayerMainUi = () => {
         return 0;
     });
 
-    const initializeDPlayer = (streamUrl, channelName) => {
-        // Add timeout to ensure DOM is ready
-        setTimeout(() => {
-            if (!window.DPlayer) {
-                console.error('DPlayer not loaded');
-                setErrorMessage('Video player not loaded. Please refresh the page.');
-                setShowErrorModal(true);
-                return;
-            }
-
-            if (!playerContainerRef.current) {
-                console.error('Player container not found');
-                setErrorMessage('Player container not found. Please try again.');
-                setShowErrorModal(true);
-                return;
-            }
-
-            // Destroy existing player instance
-            if (playerInstance.current) {
-                try {
-                    playerInstance.current.destroy();
-                    playerInstance.current = null;
-                } catch (error) {
-                    console.log('Error destroying previous player:', error);
-                }
-            }
-
-            // Clear container
-            playerContainerRef.current.innerHTML = '';
-
-            try {
-
-                playerInstance.current = new window.DPlayer({
-                    container: playerContainerRef.current,
-                    live: true,
-                    autoplay: true,
-                    theme: '#3b82f6',
-                    lang: 'en',
-                    screenshot: false,
-                    hotkey: true,
-                    preload: 'auto',
-                    volume: 1,
-                    mutex: true,
-                    video: {
-                        url: streamUrl, // direct link, not via backend
-                        type: 'hls',
-                        customType: {
-                            hls: function (video, player) {
-                                if (window.Hls && window.Hls.isSupported()) {
-                                    const hls = new window.Hls({
-                                        enableWorker: false,
-                                        lowLatencyMode: false,
-                                        backBufferLength: 90,
-                                        maxBufferLength: 30,
-                                        maxBufferSize: 60 * 1000 * 1000,
-                                        maxBufferHole: 0.5,
-                                        manifestLoadingTimeOut: 10000,
-                                        levelLoadingTimeOut: 10000,
-                                        fragLoadingTimeOut: 20000
-                                    });
-                                    hls.loadSource(video.src);
-                                    hls.attachMedia(video);
-                                }
-                            }
-                        }
-                    },
-                    contextmenu: [
-                        {
-                            text: channelName,
-                            click: () => { }
-                        }
-                    ]
-                });
-
-                // Event listeners
-                playerInstance.current.on('loadstart', () => {
-                    setIsLoading(true);
-                });
-
-                playerInstance.current.on('canplay', () => {
-                    setIsLoading(false);
-                });
-
-                playerInstance.current.on('playing', () => {
-                    setIsLoading(false);
-                });
-
-                playerInstance.current.on('error', (error) => {
-                    setIsLoading(false);
-                    // setErrorMessage('Stream loading failed. Please try again.');
-                    // setShowErrorModal(true);
-                });
-
-                playerInstance.current.on('waiting', () => {
-                    
-                });
-
-            } catch (error) {
-                console.error('Error initializing DPlayer:', error);
-                setIsLoading(false);
-                setErrorMessage('Failed to initialize video player. Please try again.');
-                setShowErrorModal(true);
-            }
-        }, 100); // 100ms delay to ensure DOM is ready
-    };
-
-    const handleChannelSelect = async (channel) => {
-
-        // Prevent selecting the same channel multiple times
-        if (lastSelectedChannel?._id === channel._id) {
+    const initializeClapprPlayer = (streamUrl) => {
+        setIsLoading(true);
+        console.log('--- Initializing Clappr Player ---');
+        console.log('window.Clappr:', window.Clappr);
+        console.log('playerContainerRef.current:', playerContainerRef.current);
+        console.log('containerId:', containerId);
+        if (clapprPlayerRef.current) {
+            clapprPlayerRef.current.destroy();
+            clapprPlayerRef.current = null;
+        }
+        if (!window.Clappr || !playerContainerRef.current) {
+            setErrorMessage('Clappr Player not loaded. Please refresh the page.');
+            setShowErrorModal(true);
+            setIsLoading(false);
+            console.error('Clappr not loaded or player container missing');
             return;
         }
+        // Clear container before creating new player
+        playerContainerRef.current.innerHTML = '';
+        console.log('Initializing Clappr with stream URL:', streamUrl);
+        clapprPlayerRef.current = new window.Clappr.Player({
+            source: streamUrl,
+            parentId: `#${containerId}`,
+            autoPlay: true,
+            mute: false,
+            height: '100%',
+            width: '100%',
+            playback: { playInline: true },
+            mediacontrol: { seekbar: '#FF0000', buttons: '#FFFFFF' },
+            plugins: [],
+            poster: '',
+            chromeless: false,
+            disableKeyboardShortcuts: false,
+            events: {
+                onReady: () => {
+                    setIsLoading(false);
+                    console.log('Clappr player ready');
+                    // Restore volume
+                    const lastVolume = localStorage.getItem('clappr_last_volume');
+                    if (lastVolume) {
+                        clapprPlayerRef.current.setVolume(Number(lastVolume));
+                    }
+                },
+                onError: (err) => {
+                    console.error('Clappr error:', err);
+                    // Try fallback test stream if not already tried
+                    if (streamUrl !== 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8') {
+                        console.warn('Trying fallback test stream...');
+                        initializeClapprPlayer('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8');
+                    } else {
+                        setErrorMessage('Stream loading failed. Please try again.');
+                        setShowErrorModal(true);
+                        setIsLoading(false);
+                    }
+                },
+            },
+        });
+        // Save volume changes
+        clapprPlayerRef.current.on('volumeupdate', () => {
+            const v = clapprPlayerRef.current.getVolume();
+            localStorage.setItem('clappr_last_volume', v);
+        });
+    };
 
-        // Premium channel access check
+    const handleChannelSelect = (channel) => {
+        console.log('handleChannelSelect called with channel:', channel);
+        if (lastSelectedChannel?._id === channel._id) return;
+        // No last channel save/restore
         if (channel?.is_premium) {
             if (!user?.email) {
                 setErrorMessage('This is a premium channel. Please log in to access it.');
@@ -280,83 +249,74 @@ const DPlayerMainUi = () => {
                 return;
             }
         }
-
         setCurrentChannel(channel);
         setLastSelectedChannel(channel);
         setShowErrorModal(false);
-
-        // Check if channel has valid stream URL
         if (!channel.m3u8_url) {
-            console.error('No stream URL found for channel:', channel.name);
             setErrorMessage('Stream URL not available for this channel.');
             setShowErrorModal(true);
             return;
         }
-
-        // Wait for DPlayer to be loaded and DOM to be ready
-        if (!dplayerLoaded || !window.DPlayer) {
-            setIsLoading(true);
-            const checkDPlayer = setInterval(() => {
-                if (window.DPlayer && playerContainerRef.current) {
-                    clearInterval(checkDPlayer);
-                    initializeDPlayer(channel.m3u8_url, channel.name);
+        // Wait for Clappr to load
+        if (window.Clappr && playerContainerRef.current) {
+            initializeClapprPlayer(channel.m3u8_url);
+        } else {
+            const checkClappr = setInterval(() => {
+                if (window.Clappr && playerContainerRef.current) {
+                    clearInterval(checkClappr);
+                    initializeClapprPlayer(channel.m3u8_url);
                 }
             }, 100);
-
-            // Clear interval after 10 seconds to prevent infinite loop
-            setTimeout(() => {
-                clearInterval(checkDPlayer);
-                if (!window.DPlayer) {
-                    setIsLoading(false);
-                    setErrorMessage('Failed to load video player. Please refresh the page.');
-                    setShowErrorModal(true);
-                }
-            }, 10000);
-            return;
+            setTimeout(() => clearInterval(checkClappr), 10000);
         }
-
-        initializeDPlayer(channel.m3u8_url, channel.name);
     };
 
-    // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (playerInstance.current) {
-                try {
-                    playerInstance.current.destroy();
-                } catch (error) {
-                    console.log('Error destroying player on unmount:', error);
-                }
+            if (clapprPlayerRef.current) {
+                clapprPlayerRef.current.destroy();
             }
         };
     }, []);
 
     return (
         <div className="min-h-screen overflow-hidden bg-gray-900 text-white">
-            {/* Header */}
+            {/* CSS fixes for Clappr overlays and controls */}
+            <style>{`
+                /* Center play/pause overlays */
+                .clappr-play-wrapper, .clappr-pause-wrapper {
+                    left: 50% !important;
+                    top: 50% !important;
+                    transform: translate(-50%, -50%) !important;
+                }
+                /* Ensure control bar is always visible and interactive */
+                .clappr-media-control .media-control-background {
+                    opacity: 1 !important;
+                }
+                .clappr-media-control .media-control-layer {
+                    pointer-events: auto !important;
+                }
+                /* Fix for play/pause button not working */
+                .clappr-playback-controls .media-control-button {
+                    pointer-events: auto !important;
+                }
+            `}</style>
             <Header />
-
             <div className="flex flex-col lg:flex-row">
-                {/* Left Side - Video Player */}
                 <div className="w-full lg:w-1/2 p-3 lg:p-6">
                     <div className="max-w-full lg:max-w-2xl mx-auto">
-                        {/* Video Player Container */}
                         <div className="relative bg-black rounded-lg overflow-hidden shadow-2xl">
                             <div className="aspect-video relative">
                                 {currentChannel ? (
                                     <>
-                                        {/* DPlayer Container */}
                                         <div
+                                            id={containerId}
                                             ref={playerContainerRef}
-                                            className="w-full h-full"
-                                            style={{ minHeight: '100%' }}
+                                            style={{ width: '100%', height: '100%' }}
                                         />
-
-                                        {/* Loading Overlay */}
                                         {isLoading && (
                                             <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
                                                 <div className="pointer-events-auto text-center mt-8">
-                                                    
                                                     <p className="text-white mt-12 text-sm lg:text-base">Loading...</p>
                                                 </div>
                                             </div>
@@ -372,25 +332,18 @@ const DPlayerMainUi = () => {
                                 )}
                             </div>
                         </div>
-
-                        {/* Current Channel Info */}
                         {currentChannel && (
                             <div className="mt-4">
                                 <CurrentChannelInfo currentChannel={currentChannel} />
                             </div>
                         )}
-
-                        {/* Keyboard Shortcuts Info - Hidden on mobile */}
                         <div className="hidden lg:block mt-4">
                             <KeyboardShortcut />
                         </div>
                     </div>
                 </div>
-
-                {/* Right Side - Channel Grid & Filters */}
                 <div className="w-full lg:w-1/2 p-3 lg:p-6">
                     <div className="max-w-full lg:max-w-4xl mx-auto">
-                        {/* Filters Section */}
                         <div className="mb-4 lg:mb-6 bg-gray-800 p-3 lg:p-4 rounded-lg border border-gray-700">
                             <div className="flex items-center justify-between mb-3 lg:mb-4">
                                 <h2 className="text-lg lg:text-xl font-semibold">
@@ -416,8 +369,6 @@ const DPlayerMainUi = () => {
                                     </button>
                                 </div>
                             </div>
-
-                            {/* Search Bar */}
                             <div className="mb-3 lg:mb-4">
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3 lg:w-4 lg:h-4" />
@@ -430,8 +381,6 @@ const DPlayerMainUi = () => {
                                     />
                                 </div>
                             </div>
-
-                            {/* Category Filters */}
                             <div className="flex flex-wrap gap-1 lg:gap-2 max-h-24 lg:max-h-none overflow-y-auto lg:overflow-visible">
                                 {categories.map(category => (
                                     <button
@@ -477,8 +426,6 @@ const DPlayerMainUi = () => {
                                 </div>
                             </div>
                         </div>
-
-                        {/* Channel Grid */}
                         <div className="space-y-4">
                             {
                                 initialChannelsLoading ? (
@@ -566,8 +513,7 @@ const DPlayerMainUi = () => {
                                                                 {channel.is_premium && (
                                                                     <Lock className="w-3 h-3 lg:w-4 lg:h-4 text-yellow-400" />
                                                                 )}
-                                                                <div className={`w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full ${channel.is_online ? 'bg-green-500' : 'bg-red-500'
-                                                                    }`}></div>
+                                                                <div className={`w-1.5 h-1.5 lg:w-2 lg:h-2 rounded-full ${channel.is_online ? 'bg-green-500' : 'bg-red-500'}`}></div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -581,8 +527,6 @@ const DPlayerMainUi = () => {
                     </div>
                 </div>
             </div>
-
-            {/* Error Modal */}
             {showErrorModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-gray-800 p-4 lg:p-6 rounded-lg max-w-md w-full mx-4">
@@ -613,8 +557,6 @@ const DPlayerMainUi = () => {
                     </div>
                 </div>
             )}
-
-            {/* Login Needed Modal */}
             {showLoginNeedModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-gray-800 p-4 lg:p-6 rounded-lg max-w-md w-full mx-4">
@@ -637,8 +579,6 @@ const DPlayerMainUi = () => {
                     </div>
                 </div>
             )}
-
-            {/* Subscription Upgrade Modal */}
             {subscriptionUpdagradeModalOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-gray-800 p-4 lg:p-6 rounded-lg max-w-md w-full mx-4">
@@ -662,8 +602,7 @@ const DPlayerMainUi = () => {
                 </div>
             )}
         </div>
-
     );
 };
 
-export default DPlayerMainUi;
+export default ClapprPlayerMainUi;
