@@ -142,6 +142,18 @@ const DPlayerMainUi = () => {
         loadDPlayer();
     }, []);
 
+    // Add preconnect/prefetch for stream domain (if known)
+    useEffect(() => {
+        // Add preconnect for stream CDN (replace with your actual CDN domain if different)
+        const preconnect = document.createElement('link');
+        preconnect.rel = 'preconnect';
+        preconnect.href = 'https://your-stream-cdn-domain.com'; // <-- Replace with your actual stream CDN domain
+        document.head.appendChild(preconnect);
+        return () => {
+            document.head.removeChild(preconnect);
+        };
+    }, []);
+
     const sortedChannels = channels.filter(channel => {
         const matchesSearch = channel.name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesCategory = selectedCategory === 'all' || channel.category_id.slug === selectedCategory;
@@ -268,7 +280,7 @@ const DPlayerMainUi = () => {
                 setErrorMessage('Failed to initialize video player. Please try again.');
                 setShowErrorModal(true);
             }
-        }, 100); // 100ms delay to ensure DOM is ready
+        }, 0); // 0ms delay to ensure DOM is ready
     };
 
     const handleChannelSelect = async (channel) => {
