@@ -46,6 +46,9 @@ const DPlayerMainUi = () => {
     const playerContainerRef = useRef(null);
     const playerInstance = useRef(null);
 
+    // Helper function to detect mobile devices
+    const isMobile = () => /Mobi|Android/i.test(navigator.userAgent);
+
     useEffect(() => {
         // Fetch channels from API 
         const fetchChannels = async () => {
@@ -239,6 +242,14 @@ const DPlayerMainUi = () => {
 
                 playerInstance.current.on('playing', () => {
                     setIsLoading(false);
+                    // Auto-hide controls on mobile after 2 seconds
+                    if (isMobile()) {
+                        setTimeout(() => {
+                            if (playerInstance.current && playerInstance.current.controller) {
+                                playerInstance.current.controller.hide();
+                            }
+                        }, 2000);
+                    }
                 });
 
                 playerInstance.current.on('error', (error) => {
