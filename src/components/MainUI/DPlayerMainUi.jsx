@@ -514,27 +514,28 @@ const DPlayerMainUi = () => {
                                                     <div
                                                         key={channel._id}
                                                         onClick={() => handleChannelSelect(channel)}
-                                                        className={`cursor-pointer rounded-lg border transition-all duration-200 hover:scale-105 ${currentChannel?._id === channel._id
-                                                            ? 'border-blue-500 bg-blue-500/10'
-                                                            : 'border-gray-600 hover:border-gray-500 bg-gray-700/50 hover:bg-gray-700'
-                                                            }`}
+                                                        className={`cursor-pointer rounded-lg border transition-all duration-200 hover:scale-105 relative \
+      ${currentChannel?._id === channel._id
+        ? 'border-blue-500 bg-blue-500/10'
+        : channel.is_premium
+          ? 'border-yellow-500 bg-yellow-100/10 hover:border-yellow-400 hover:bg-yellow-100/20'
+          : 'border-green-500 bg-green-100/10 hover:border-green-400 hover:bg-green-100/20'
+      }`}
                                                     >
+                                                        {/* Ribbon for Free/Premium */}
+                                                        <div className="absolute top-0 left-0 z-20">
+                                                            {channel.is_premium ? (
+                                                                <div className="bg-yellow-500 text-white px-3 py-1 rounded-br-lg font-bold text-xs shadow-lg -rotate-6 tracking-wider select-none">PREMIUM</div>
+                                                            ) : (
+                                                                <div className="bg-green-500 text-white px-3 py-1 rounded-br-lg font-bold text-xs shadow-lg -rotate-6 tracking-wider select-none">FREE</div>
+                                                            )}
+                                                        </div>
                                                         <div className="relative">
                                                             <img
                                                                 src={channel.thumbnail}
                                                                 alt={channel.name}
                                                                 className="w-full h-16 sm:h-20 lg:h-24 object-cover rounded-t-lg"
                                                             />
-                                                            <div className="absolute top-1 lg:top-2 right-1 lg:right-2 flex space-x-1">
-                                                                {channel.is_premium && (
-                                                                    <span className={`${subscription?.subscription_type !== 'premium' && subscription?.status !== 'active' ? 'bg-red-500' : 'bg-emerald-600'} text-white px-1 lg:px-2 py-0.5 lg:py-1 rounded text-xs font-medium`}>
-                                                                        {
-                                                                            subscription?.subscription_type !== 'premium' && subscription?.status !== 'active' ? <Lock className="w-2 h-2 lg:w-3 lg:h-3 inline mr-1" /> : <Unlock className="w-2 h-2 lg:w-3 lg:h-3 inline mr-1" />
-                                                                        }
-                                                                        <span className="">Pro</span>
-                                                                    </span>
-                                                                )}
-                                                            </div>
                                                             <div className="absolute bottom-1 lg:bottom-2 right-1 lg:right-2 bg-black/70 text-white px-1 lg:px-2 py-0.5 lg:py-1 rounded text-xs">
                                                                 {channel.quality}
                                                             </div>
@@ -558,11 +559,22 @@ const DPlayerMainUi = () => {
                                                     <div
                                                         key={channel._id}
                                                         onClick={() => handleChannelSelect(channel)}
-                                                        className={`cursor-pointer rounded-lg border transition-all duration-200 ${currentChannel?._id === channel._id
-                                                            ? 'border-blue-500 bg-blue-500/10'
-                                                            : 'border-gray-600 hover:border-gray-500 bg-gray-700/50 hover:bg-gray-700'
-                                                            }`}
+                                                        className={`cursor-pointer rounded-lg border transition-all duration-200 relative \
+      ${currentChannel?._id === channel._id
+        ? 'border-blue-500 bg-blue-500/10'
+        : channel.is_premium
+          ? 'border-yellow-500 bg-yellow-100/10 hover:border-yellow-400 hover:bg-yellow-100/20'
+          : 'border-green-500 bg-green-100/10 hover:border-green-400 hover:bg-green-100/20'
+      }`}
                                                     >
+                                                        {/* Ribbon for Free/Premium */}
+                                                        <div className="absolute top-0 left-0 z-20">
+                                                            {channel.is_premium ? (
+                                                                <div className="bg-yellow-500 text-white px-3 py-1 rounded-br-lg font-bold text-xs shadow-lg -rotate-6 tracking-wider select-none">PREMIUM</div>
+                                                            ) : (
+                                                                <div className="bg-green-500 text-white px-3 py-1 rounded-br-lg font-bold text-xs shadow-lg -rotate-6 tracking-wider select-none">FREE</div>
+                                                            )}
+                                                        </div>
                                                         <div className="flex items-center p-2 lg:p-3 space-x-2 lg:space-x-3">
                                                             <img
                                                                 src={channel.logo}
