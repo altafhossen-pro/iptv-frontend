@@ -25,7 +25,7 @@ const NewsTicker = ({
 
     return (
         <div 
-            className="relative bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 text-white overflow-hidden shadow-lg border-b border-gray-600"
+            className="relative bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 text-white overflow-hidden shadow-lg border-b border-gray-600 hidden lg:block"
             style={{ height }}
         >
             {/* Breaking News Label */}
